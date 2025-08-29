@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movimientos - Inventrack</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+
+<body onload="initMovements()">
+
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="dashboard.html">
+                <img src="../Img/logo.png" width="80"><strong> Inventrack</strong>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link" href="productos.html">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bodegas.html">Bodegas</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="movimientos.html">Movimientos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="reportes.html">Reportes</a></li>
+                    <li class="nav-item"><a class="nav-link" href="usuarios.html">Usuarios</a></li>
+                </ul>
+                <form class="d-flex" role="search">
+                    <button class="btn btn-danger" type="button" onclick="logout()">Salir</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <!-- CONTENIDO -->
+    <main class="container py-5">
+        <h2>Registrar Movimiento</h2>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label>Tipo</label>
+                <select id="movType" class="form-select">
+                    <option value="IN">Entrada</option>
+                    <option value="OUT">Salida</option>
+                    <option value="TRANSFER">Transferencia</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label>Producto</label>
+                <select id="movProduct" class="form-select"></select>
+            </div>
+            <div class="col-md-3" id="fromWDiv">
+                <label>Desde</label>
+                <select id="movFrom" class="form-select"></select>
+            </div>
+            <div class="col-md-3" id="toWDiv">
+                <label>Hacia</label>
+                <select id="movTo" class="form-select"></select>
+            </div>
+            <div class="col-md-3">
+                <label>Cantidad</label>
+                <input type="number" id="movQty" class="form-control">
+            </div>
+            <div class="col-md-6">
+                <label>Nota</label>
+                <input type="text" id="movNote" class="form-control">
+            </div>
+            <div class="col-md-3 align-self-end">
+                <button class="btn btn-primary w-100" onclick="addMovement()">Registrar</button>
+            </div>
+        </div>
+
+        <h3>Historial</h3>
+        <input type="text" id="searchMov" class="form-control mb-3" placeholder="Buscar movimientos..."
+            oninput="renderMovements()">
+        <div id="movementsList"></div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let db = {
+            products: [
+                { id: 'p1', sku: 'SKU001', name: 'Producto 1', minStock: 5, stocks: { w1: 10, w2: 5 } },
+                { id: 'p2', sku: 'SKU002', name: 'Producto 2', minStock: 3, stocks: { w1: 2, w2: 8 } }
+            ],
+            warehouses: [
+                { id: 'w1', name: 'Bodega A' },
+                { id: 'w2', name: 'Bodega B' }
+            ],
+            movements: []
+        };
+
+        function initMovements() {
+            const prodSelect = document.getElementById('movProduct');
+            db.products.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.name} (${p.sku})`;
+                prodSelect.appendChild(opt);
+            });
+
+            renderWarehouses();
+            renderMovements();
+
+            document.getElementById('movType').addEventListener('change', toggleWarehouseFields);
+            toggleWarehouseFields();
+        }
+
+        function toggleWarehouseFields() {
+            const type = document.getElementById('movType').value;
+            document.getElementById('fromWDiv').style.display = (type === "OUT" || type === "TRANSFER") ? 'block' : 'none';
+            document.getElementById('toWDiv').style.display = (type === "IN" || type === "TRANSFER") ? 'block' : 'none';
+        }
+
+        function renderWarehouses() {
+            const from = document.getElementById('movFrom');
+            const to = document.getElementById('movTo');
+            from.innerHTML = ''; to.innerHTML = '';
+            db.warehouses.forEach(w => {
+                const optFrom = document.createElement('option'); optFrom.value = w.id; optFrom.textContent = w.name; from.appendChild(optFrom);
+                const optTo = document.createElement('option'); optTo.value = w.id; optTo.textContent = w.name; to.appendChild(optTo);
+            });
+        }
+
+        function addMovement() {
+            const type = document.getElementById('movType').value;
+            const productId = document.getElementById('movProduct').value;
+            const fromW = document.getElementById('movFrom').value;
+            const toW = document.getElementById('movTo').value;
+            const qty = Number(document.getElementById('movQty').value);
+            const note = document.getElementById('movNote').value.trim();
+
+            if (!productId || qty <= 0) return alert("Seleccione producto y cantidad válida");
+
+            const product = db.products.find(p => p.id === productId);
+
+            // Validación de stock
+            if (type === "OUT" && (product.stocks[fromW] || 0) < qty) {
+                return alert("No hay suficiente stock en la bodega seleccionada");
+            }
+            if (type === "TRANSFER" && (product.stocks[fromW] || 0) < qty) {
+                return alert("No hay suficiente stock en la bodega de origen");
+            }
+
+            const movement = {
+                id: 'm' + Date.now(),
+                type,
+                productId,
+                qty,
+                fromW,
+                toW,
+                date: new Date().toLocaleString(),
+                note
+            };
+
+            // Actualizar stocks
+            if (type === "IN") product.stocks[toW] = (product.stocks[toW] || 0) + qty;
+            if (type === "OUT") product.stocks[fromW] = (product.stocks[fromW] || 0) - qty;
+            if (type === "TRANSFER") {
+                if (fromW === toW) return alert("Origen y destino no pueden ser iguales");
+                product.stocks[fromW] = (product.stocks[fromW] || 0) - qty;
+                product.stocks[toW] = (product.stocks[toW] || 0) + qty;
+            }
+
+            db.movements.unshift(movement);
+            document.getElementById('movQty').value = '';
+            document.getElementById('movNote').value = '';
+            renderMovements();
+        }
+
+        function renderMovements() {
+            const search = document.getElementById('searchMov').value.toLowerCase();
+            const container = document.getElementById('movementsList');
+            container.innerHTML = '';
+
+            const typeLabels = { IN: "Entrada", OUT: "Salida", TRANSFER: "Transferencia" };
+
+            db.movements.filter(m => {
+                const p = db.products.find(p2 => p2.id === m.productId);
+                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                const s = [p?.name, p?.sku, m.type, fromName, toName, m.note].join(' ').toLowerCase();
+                return s.includes(search);
+            }).forEach(m => {
+                const p = db.products.find(p2 => p2.id === m.productId);
+                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                const div = document.createElement('div');
+                div.className = 'p-3 mb-2 border rounded bg-light';
+                div.innerHTML = `
+                    <strong>${typeLabels[m.type]}</strong> - ${p.name} (${p.sku})<br>
+                    ${fromName ? 'Desde: ' + fromName : ''} ${toName ? 'Hacia: ' + toName : ''}<br>
+                    Cantidad: ${m.qty}<br>
+                    Nota: ${m.note || '---'}<br>
+                    <small class="text-muted">${m.date}</small>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function logout() {
+            window.location.href = "../index.html";
+        }
+    </script>
+</body>
+
+</html>
