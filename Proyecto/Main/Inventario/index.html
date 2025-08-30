@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inventrack - Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="form-content">
+            <h1 id="title">Registro</h1>
+            <form id="formulario">
+                <div class="input-group">
+                    <div class="input-field" id="nameInput">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="nombre" name="nombre" placeholder="Nombre">
+                    </div>
+                    <div class="input-field">
+                        <i class="fa-solid fa-envelope"></i>
+                        <input type="email" id="correo" name="correo" placeholder="Correo">
+                    </div>
+                    <div class="input-field">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="password" name="password" placeholder="Contraseña">
+                    </div>
+                    <p>¿Olvidaste tu contraseña? <a href="#">Recupérala aquí</a></p>
+                </div>
+                <div class="btn-field">
+                    <button id="signUp" type="submit">Registrarse</button>
+                    <button id="signIn" type="button" class="disable">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let signUp = document.getElementById("signUp");
+        let signIn = document.getElementById("signIn");
+        let nameInput = document.getElementById("nameInput");
+        let title = document.getElementById("title");
+
+        // Alternar entre Login y Registro
+        signIn.onclick = function (e) {
+            e.preventDefault();
+            nameInput.style.maxHeight = "0";
+            title.innerHTML = "Login";
+            signUp.classList.add("disable");
+            signIn.classList.remove("disable");
+        }
+
+        signUp.onclick = function (e) {
+            nameInput.style.maxHeight = "60px";
+            title.innerHTML = "Registro";
+            signUp.classList.remove("disable");
+            signIn.classList.add("disable");
+        }
+
+        // Validación y redirección
+        const form = document.getElementById("formulario");
+
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            let nombre = document.getElementById("nombre").value.trim();
+            let correo = document.getElementById("correo").value.trim();
+            let password = document.getElementById("password").value.trim();
+            let errores = [];
+
+            if (title.innerHTML === "Registro" && nombre === "") {
+                errores.push("El nombre es obligatorio.");
+            }
+
+            let regexCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!regexCorreo.test(correo)) errores.push("El correo no es válido.");
+            if (password.length < 6) errores.push("La contraseña debe tener al menos 6 caracteres.");
+
+            if (errores.length > 0) {
+                alert(errores.join("\n"));
+            } else {
+                alert("Formulario válido ✅");
+                window.location.href = "Pages/dashboard.html";
+            }
+        });
+    </script>
+</body>
+
+</html>
