@@ -2,20 +2,19 @@
 <html lang="es">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard - Inventrack</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/style.css" />
 </head>
 
 <body onload="initDashboard()">
 
-    <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
         <div class="container-fluid">
             <a class="navbar-brand" href="dashboard.html">
-                <img src="../Img/logo.png" width="80"><strong> Inventrack</strong>
+                <img src="../Img/logo.png" width="80" alt="Inventrack"><strong> Inventrack</strong>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                 data-bs-target="#navbarSupportedContent">
@@ -37,45 +36,73 @@
         </div>
     </nav>
 
-    <!-- CONTENIDO -->
-    <main class="container py-5">
-        <!-- Estadísticas -->
-        <div class="row g-4" id="statsContainer"></div>
+    <main class="container-dashboard">
+        <h2 class="section-title text-center">Panel de Control</h2>
 
-        <!-- Alertas -->
-        <div class="card mt-4">
-            <div class="card-header"><strong>Alertas de stock bajo</strong></div>
-            <div class="card-body" id="lowStockContainer"></div>
+        <div class="row g-4 mb-4 stats-grid" id="statsContainer"></div>
+
+        <div class="row w-100">
+            <div class="col-12">
+                <div class="card card-scroll">
+                    <div class="card-header"><strong>Alertas de Stock Bajo</strong></div>
+                    <div class="card-body">
+                        <div class="scroll-body" id="lowStockContainer"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Base de datos simulada
-        let db = {
-            products: [
-                { id: 'p1', sku: 'SKU001', name: 'Producto 1', minStock: 5 },
-                { id: 'p2', sku: 'SKU002', name: 'Producto 2', minStock: 3 }
-            ],
-            warehouses: [
-                { id: 'w1', name: 'Bodega A' },
-                { id: 'w2', name: 'Bodega B' }
-            ],
-            movements: [],
-            stocks: {
-                'SKU001': { 'w1': 2, 'w2': 6 },
-                'SKU002': { 'w1': 4, 'w2': 1 }
-            }
-        };
+        const LS_KEY = 'inventrackDB';
 
-        // Inicialización
+        function loadDB() {
+            const raw = localStorage.getItem(LS_KEY);
+            if (raw) {
+                try { return JSON.parse(raw); } catch { }
+            }
+            const seed = {
+                products: [
+                    { id: 'p1', sku: 'SKU001', name: 'Producto 1', minStock: 5, stocks: {} },
+                    { id: 'p2', sku: 'SKU002', name: 'Producto 2', minStock: 3, stocks: {} }
+                ],
+                warehouses: [
+                    { id: 'w1', name: 'Bodega A' },
+                    { id: 'w2', name: 'Bodega B' }
+                ],
+                movements: []
+            };
+            seed.products = seed.products.map(p => ({
+                ...p,
+                stocks: seed.warehouses.reduce((acc, w) => (acc[w.id] = acc[w.id] ?? 0, acc), p.stocks || {})
+            }));
+            localStorage.setItem(LS_KEY, JSON.stringify(seed));
+            return seed;
+        }
+
+        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+
+        function ensureStocksForWarehouses() {
+            db.products = db.products.map(p => ({
+                ...p,
+                stocks: db.warehouses.reduce((acc, w) => {
+                    acc[w.id] = typeof acc[w.id] === 'number' ? acc[w.id] : 0;
+                    return acc;
+                }, { ...(p.stocks || {}) })
+            }));
+        }
+
+        let db = loadDB();
+
         function initDashboard() {
+            ensureStocksForWarehouses();
+            saveDB();
             renderStats();
             renderLowStock();
         }
 
-        // Estadísticas generales
         function renderStats() {
             const container = document.getElementById('statsContainer');
             container.innerHTML = '';
@@ -88,19 +115,18 @@
 
             stats.forEach(s => {
                 const div = document.createElement('div');
-                div.className = 'col-md-4';
+                div.className = 'col-12 col-sm-6 col-lg-4 d-flex';
                 div.innerHTML = `
-            <div class="card rounded-2xl p-3 text-center shadow-sm">
-                <h5>${s.title}</h5>
-                <div class="display-5 fw-bold">${s.value}</div>
-                <small class="text-muted">${s.footer}</small>
-            </div>
+          <div class="card p-3 text-center shadow-sm h-100 w-100">
+            <h5>${s.title}</h5>
+            <div class="display-5 fw-bold">${s.value}</div>
+            <small>${s.footer}</small>
+          </div>
         `;
                 container.appendChild(div);
             });
         }
 
-        // Alertas de stock bajo
         function renderLowStock() {
             const container = document.getElementById('lowStockContainer');
             container.innerHTML = '';
@@ -108,8 +134,8 @@
             const lowStock = [];
             db.products.forEach(p => {
                 db.warehouses.forEach(w => {
-                    const qty = db.stocks[p.sku]?.[w.id] || 0;
-                    if (qty < p.minStock) {
+                    const qty = p.stocks?.[w.id] ?? 0;
+                    if (qty < (p.minStock ?? 0)) {
                         lowStock.push({ product: p, warehouse: w, qty });
                     }
                 });
@@ -120,20 +146,17 @@
             } else {
                 lowStock.forEach(a => {
                     const div = document.createElement('div');
-                    div.className = 'd-flex justify-content-between align-items-center p-2 mb-2 rounded border bg-warning bg-opacity-25';
+                    div.className = 'movement-card';
                     div.innerHTML = `
-                <div>
-                    <div><strong>${a.product.name}</strong> <small class="text-muted">(${a.product.sku})</small></div>
-                    <small>Bodega: ${a.warehouse.name}</small>
-                </div>
-                <span class="badge bg-danger">Stock: ${a.qty} / Min: ${a.product.minStock}</span>
-            `;
+            <div><strong>${a.product.name}</strong> <small class="text-muted">(${a.product.sku})</small></div>
+            <small>Bodega: ${a.warehouse.name}</small><br>
+            <span class="badge bg-danger mt-2">Stock: ${a.qty} / Min: ${a.product.minStock}</span>
+          `;
                     container.appendChild(div);
                 });
             }
         }
 
-        // Logout
         function logout() {
             window.location.href = "../index.html";
         }
