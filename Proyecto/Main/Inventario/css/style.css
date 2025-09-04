@@ -1,4 +1,6 @@
-/* -------------------- RESET -------------------- */
+/* =========================
+   RESET & BASE
+========================= */
 * {
   margin: 0;
   padding: 0;
@@ -7,29 +9,41 @@
   text-decoration: none;
 }
 
-/* -------------------- FONDO GENERAL -------------------- */
+:root {
+  /* Paleta / ajustes rápidos */
+  --brand: #04bd7d;
+  --brand-600: #039c67;
+  --bg-card: rgba(44, 47, 53, 0.95);
+  --text-light: #fff;
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.3);
+  --divider: rgba(255, 255, 255, 0.2);
+}
+
+/* Fondo general */
 body {
   width: 100%;
   min-height: 100vh;
   background: url("../Img/IMG3.png") repeat center center;
   background-size: cover;
-  color: #fff;
+  color: var(--text-light);
 }
 
-/* -------------------- NAVBAR -------------------- */
+/* =========================
+   NAVBAR
+========================= */
 .navbar {
-  background-color: rgba(44, 47, 53, 0.9) !important; /* semitransparente */
+  background-color: rgba(255, 255, 255, 0.9) !important;
 }
-
 .navbar a.nav-link {
-  color: #fff !important;
+  color: #020202 !important;
 }
-
 .navbar a.nav-link:hover {
-  color: #04BD7D !important;
+  color: var(--brand) !important;
 }
 
-/* -------------------- LOGIN / REGISTRO -------------------- */
+/* =========================
+   LOGIN / REGISTRO
+========================= */
 .container {
   width: 100%;
   min-height: 100vh;
@@ -41,26 +55,24 @@ body {
 .form-content {
   width: 100%;
   max-width: 450px;
-  background-color: rgba(44, 47, 53, 0.95);
+  background-color: var(--bg-card);
   padding: 50px 60px 70px;
   text-align: center;
   border-radius: 25px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
 }
-
 .form-content h1 {
   font-size: 30px;
-  color: #fff;
   margin-bottom: 60px;
+  color: var(--text-light);
   position: relative;
 }
-
 .form-content h1::after {
-  content: '';
+  content: "";
   width: 30px;
   height: 4px;
   border-radius: 3px;
-  background: #04BD7D;
+  background: var(--brand);
   position: absolute;
   bottom: -12px;
   left: 50%;
@@ -77,29 +89,26 @@ body {
   overflow: hidden;
   transition: 0.3s;
 }
-
 .input-field i {
   margin-left: 15px;
-  color: #04BD7D;
+  color: var(--brand);
   font-size: 18px;
 }
-
-input, select {
+input,
+select {
   width: 100%;
   padding: 15px;
   background: transparent;
   border: none;
   outline: none;
-  color: #fff;
+  color: var(--text-light);
   font-size: 15px;
 }
-
 input::placeholder {
   color: #ddd;
 }
-
 .input-field input:focus {
-  border-bottom: 2px solid #04BD7D;
+  border-bottom: 2px solid var(--brand);
 }
 
 /* Texto adicional */
@@ -109,19 +118,17 @@ form p {
   font-size: 13px;
   margin-top: 10px;
 }
-
 form p a {
-  color: #04BD7D;
+  color: var(--brand);
   font-weight: bold;
 }
 
-/* Botones */
+/* Botones Login */
 .btn-field {
   display: flex;
   justify-content: space-between;
   margin-top: 30px;
 }
-
 .btn-field button {
   flex-basis: 48%;
   font-size: 16px;
@@ -133,51 +140,277 @@ form p a {
   cursor: pointer;
   transition: all 0.3s ease;
 }
-
 .btn-field button:hover {
   background-color: #0056b3;
 }
-
 .btn-field button.disable {
-  background-color: #EAEAEA;
+  background-color: #eaeaea;
   color: #2c2f35;
 }
 
-/* -------------------- DASHBOARD -------------------- */
+/* =========================
+   LAYOUT PÁGINAS
+========================= */
 main.container {
   padding: 50px 20px;
 }
 
+.container-dashboard,
+.container-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* centrado en móvil */
+  text-align: center; /* centrado en móvil */
+}
+
+@media (min-width: 576px) {
+  .container-dashboard,
+  .container-page {
+    align-items: stretch; /* a la izquierda en >= sm */
+    text-align: left;
+  }
+}
+
+.container-dashboard .row,
+.container-page .row {
+  width: 100%;
+}
+
+/* Títulos */
+.section-title {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--text-light);
+  margin-bottom: 40px;
+  position: relative;
+}
+.section-title::after {
+  content: "";
+  display: block;
+  width: 60px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brand);
+  margin: 10px auto 0;
+}
+
+/* =========================
+   CARDS / TABLAS / LISTAS
+========================= */
 .card {
-  border-radius: 15px;
-  background-color: rgba(44, 47, 53, 0.9);
-  color: #fff;
+  border-radius: 20px;
+  background-color: var(--bg-card);
+  color: var(--text-light);
+  box-shadow: var(--shadow-lg);
+}
+.card-header {
+  font-weight: bold;
+  background-color: transparent;
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-light);
+}
+.card.h-100 {
+  display: flex;
+  flex-direction: column;
+}
+.card-body {
+  flex: 1;
 }
 
-.card .btn {
-  background-color: #04BD7D;
-  border: none;
-  transition: 0.3s;
-}
-
-.card .btn:hover {
-  background-color: #028f5e;
-}
-
-/* -------------------- TABLAS Y LISTAS -------------------- */
-table, th, td {
+table,
+th,
+td {
   border: 1px solid #fff;
   border-collapse: collapse;
 }
-
-th, td {
+th,
+td {
   padding: 10px;
   text-align: left;
 }
-
 ul {
   list-style-type: none;
   padding-left: 0;
 }
 
+/* =========================
+   BOTONES GLOBAL
+========================= */
+.btn-primary {
+  background-color: var(--brand);
+  border: none;
+}
+.btn-primary:hover {
+  background-color: var(--brand-600);
+}
 
+.btn-outline-danger {
+  border: none;
+  color: #fff;
+  background: #dc3545;
+}
+.btn-outline-danger:hover {
+  background: #a71d2a;
+}
+
+.btn-outline-primary {
+  border: 1px solid var(--brand);
+  color: var(--brand);
+}
+.btn-outline-primary:hover {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* =========================
+   UTILIDADES / COMPONENTES
+========================= */
+.movement-card {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  border-left: 4px solid var(--brand);
+}
+
+/* Grid de estadísticas (dashboard) */
+.stats-grid .col > .card {
+  height: 100%;
+}
+.stats-grid small {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .row.g-4 {
+    flex-direction: column;
+  }
+}
+
+/* =========================
+   SISTEMA DE SCROLL REUTILIZABLE
+========================= */
+/* Uso de .card-scroll en la card:*/
+.card-scroll {
+  --card-max-h: 70vh;
+  max-height: var(--card-max-h);
+  display: flex;
+  flex-direction: column;
+}
+.card-scroll .card-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bs-card-cap-bg, #fff);
+  transition: box-shadow 0.2s ease;
+}
+.card-scroll.scrolled .card-header {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.card-scroll .card-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* el scroll sucede en .scroll-body */
+}
+.card-scroll .scroll-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+/* =========================
+   ESPECÍFICOS: DASHBOARD
+========================= */
+/* Solo el contenido de alertas usa blanco forzado (mantiene contraste) */
+#lowStockContainer,
+#lowStockContainer * {
+  color: #fff !important;
+}
+
+/* =========================
+   ESPECÍFICOS: PRODUCTOS
+========================= */
+.product-col > .card {
+  height: 100%;
+}
+
+/* =========================
+   ESPECÍFICOS: REPORTES
+========================= */
+#reportLowStockContainer,
+#reportLowStockContainer * {
+  color: #000 !important;
+}
+
+#warehouseSummary,
+#warehouseSummary * {
+  color: #000 !important;
+}
+
+.soft-hover:hover {
+  opacity: 0.85;
+}
+
+.filters-card .form-label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.filters-card .row > [class*="col-"] {
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+}
+@media (min-width: 768px) {
+  .filters-card .row {
+    align-items: end;
+  }
+}
+
+/* =========================
+   ESPECÍFICOS: USUARIOS
+========================= */
+.user-row {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.user-row .badge {
+  white-space: nowrap;
+}
+@media (max-width: 575.98px) {
+  .user-row .btn {
+    width: 100%;
+  }
+}
+
+/* =========================
+   ESPECÍFICOS: BODEGAS
+========================= */
+.scroll-list {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.scroll-table {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.toolbar {
+  gap: 0.5rem;
+}
+.toolbar .form-control,
+.toolbar .form-select {
+  min-width: 160px;
+}
+
+#assignSection table td,
+#assignSection table th {
+  vertical-align: middle;
+}
+
+/* =========================
+   ESPECÍFICOS: MOVIMIENTOS
+========================= */
+/* (hereda .card-scroll genérico) */
