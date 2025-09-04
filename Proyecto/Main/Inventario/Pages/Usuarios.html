@@ -13,8 +13,9 @@
 
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
         <div class="container-fluid">
-            <a class="navbar-brand" href="dashboard.html"><img src="../Img/logo.png" width="80"><strong>
-                    Inventrack</strong></a>
+            <a class="navbar-brand" href="dashboard.html">
+                <img src="../Img/logo.png" width="80"><strong> Inventrack</strong>
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                 data-bs-target="#navbarSupportedContent">
                 <span class="navbar-toggler-icon"></span>
@@ -28,122 +29,250 @@
                     <li class="nav-item"><a class="nav-link" href="reportes.html">Reportes</a></li>
                     <li class="nav-item"><a class="nav-link active" href="usuarios.html">Usuarios</a></li>
                 </ul>
-                <form class="d-flex" role="search">
-                    <button class="btn btn-danger" type="button" onclick="logout()">Salir</button>
-                </form>
+                <button class="btn btn-danger" onclick="logout()">Salir</button>
             </div>
         </div>
     </nav>
 
-    <main class="container py-5">
-        <h2>Gestiónes de usuarios</h2>
+    <main class="container-dashboard">
+        <h2 class="section-title text-center">Gestión de Usuarios</h2>
 
-        <div class="row g-4">
-
-            <!-- Crear usuario -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">Nuevo usuario</div>
+        <div class="row g-4 w-100">
+            <div class="col-md-4">
+                <div class="card shadow-sm" id="userFormCard">
+                    <div class="card-header">Nuevo Usuario</div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <label>Usuario</label>
-                            <input type="text" id="username" class="form-control">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Nombre</label>
+                                <input id="userName" type="text" placeholder="Ej: Juan Pérez" class="form-control"
+                                    autocomplete="name">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Usuario (debe incluir @)</label>
+                                <input id="userUsername" type="email" placeholder="Ej: juan@empresa.com"
+                                    class="form-control" autocomplete="username">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Contraseña</label>
+                                <input id="userPassword" type="password" placeholder="********" class="form-control"
+                                    autocomplete="new-password">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Rol</label>
+                                <select id="userRole" class="form-select">
+                                    <option value="admin">Administrador</option>
+                                    <option value="operador" selected>Operador</option>
+                                    <option value="visor">Visor</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <button onclick="addUser()" class="btn btn-primary w-100">Registrar</button>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label>Contraseña</label>
-                            <input type="password" id="password" class="form-control">
-                        </div>
-                        <div class="mb-3">
-                            <label>Rol</label>
-                            <select id="role" class="form-select">
-                                <option value="admin">Admin</option>
-                                <option value="operador">Operador</option>
-                                <option value="visor">Visor</option>
-                            </select>
-                        </div>
-                        <button class="btn btn-primary" onclick="addUser()">Crear</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Lista de usuarios -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">Usuarios</div>
-                    <div class="card-body" id="usersList"></div>
+            <div class="col-md-8">
+                <div class="card shadow-sm card-scroll" id="usersCard">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Usuarios Registrados</span>
+                        <span class="badge bg-secondary" id="usersCount">0</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="scroll-body" id="listUsers"></div>
+                    </div>
                 </div>
             </div>
-
         </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let me = { id: 'u0', username: 'admin', role: 'admin' }; // Usuario actual
-        let db = {
-            users: [
-                { id: 'u0', username: 'admin', password: '123456', role: 'admin' },
-                { id: 'u1', username: 'operador1', password: '123', role: 'operador' },
-            ]
-        };
+        const LS_KEY = 'inventrackDB';
 
-        function initUsers() {
-            renderUsers();
+        function loadDB() {
+            const raw = localStorage.getItem(LS_KEY);
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (!Array.isArray(parsed.users)) parsed.users = [];
+                    if (!parsed.users.some(u => u.role === 'admin')) {
+                        parsed.users.push({
+                            id: 'usr_' + Date.now(),
+                            name: 'Administrador',
+                            username: 'admin@local',
+                            password: '123456',
+                            role: 'admin'
+                        });
+                    }
+                    return parsed;
+                } catch { }
+            }
+            const seed = {
+                products: [], warehouses: [], movements: [],
+                users: [{
+                    id: 'usr_' + Date.now(),
+                    name: 'Administrador',
+                    username: 'admin@local',
+                    password: '123456',
+                    role: 'admin'
+                }]
+            };
+            localStorage.setItem(LS_KEY, JSON.stringify(seed));
+            return seed;
         }
 
-        function renderUsers() {
-            const container = document.getElementById('usersList');
-            container.innerHTML = '';
-            if (!can("admin")) {
-                container.innerHTML = '<div class="text-muted">Solo el rol <b>admin</b> gestiona usuarios.</div>';
-                return;
-            }
-            db.users.forEach(u => {
-                const div = document.createElement('div');
-                div.className = 'd-flex justify-content-between align-items-center mb-2 p-2 border rounded';
-                div.innerHTML = `
-            <div><strong>${u.username}</strong> <span class="badge bg-secondary text-capitalize">${u.role}</span></div>
-            <div>
-                <button class="btn btn-outline-danger btn-sm" onclick="deleteUser('${u.id}')">Eliminar</button>
-            </div>
-        `;
-                container.appendChild(div);
+        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+        function currentUser() { try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; } }
+        function isAdmin() { const me = currentUser(); return !!me && me.role === 'admin'; }
+
+        let db = loadDB();
+
+        function initUsers() {
+            setupUserFormPermissions();
+            renderUsers();
+            attachStickyShadow();
+        }
+
+        function attachStickyShadow() {
+            const card = document.getElementById('usersCard');
+            if (!card) return;
+            const scroller = card.querySelector('.scroll-body');
+            if (!scroller) return;
+
+            const toggleShadow = () => {
+                if (scroller.scrollTop > 0) {
+                    card.classList.add('scrolled');
+                } else {
+                    card.classList.remove('scrolled');
+                }
+            };
+            scroller.addEventListener('scroll', toggleShadow);
+            toggleShadow();
+        }
+
+        function disableUserForm() {
+            const card = document.getElementById('userFormCard');
+            if (!card) return;
+            const inputs = card.querySelectorAll('input, select, button');
+            inputs.forEach(el => {
+                el.disabled = true;
+                el.classList.add('disabled');
             });
+            const body = card.querySelector('.card-body');
+            const tip = document.createElement('div');
+            tip.className = 'text-muted mt-2';
+            tip.textContent = 'No tienes permisos para registrar usuarios.';
+            body.appendChild(tip);
+        }
+
+        function setupUserFormPermissions() {
+            if (!isAdmin()) disableUserForm();
         }
 
         function addUser() {
-            if (!can("admin")) return;
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const role = document.getElementById('role').value;
+            if (!isAdmin()) return alert('Solo un administrador puede crear usuarios');
 
-            if (!username || !password) return alert("Completa todos los campos");
-            if (db.users.some(u => u.username === username)) return alert("Usuario ya existe");
+            const name = document.getElementById('userName').value.trim();
+            const username = document.getElementById('userUsername').value.trim();
+            const password = document.getElementById('userPassword').value.trim();
+            const role = document.getElementById('userRole').value;
 
-            const id = 'u' + (db.users.length + 1);
-            db.users.push({ id, username, password, role });
-            document.getElementById('username').value = '';
-            document.getElementById('password').value = '';
-            document.getElementById('role').value = 'visor';
+            if (!name || !username || !password) return alert("Complete todos los campos");
+            if (!username.includes('@')) return alert('El usuario debe incluir "@" (ej: correo@dominio)');
+            if (password.length < 4) return alert("La contraseña debe tener al menos 4 caracteres");
+            if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) return alert("Ya existe un usuario con ese nombre");
+
+            db.users.push({ id: 'usr_' + Date.now(), name, username, password, role });
+            saveDB();
+
+            document.getElementById('userName').value = '';
+            document.getElementById('userUsername').value = '';
+            document.getElementById('userPassword').value = '';
+            document.getElementById('userRole').value = 'operador';
+
             renderUsers();
+            attachStickyShadow();
         }
 
         function deleteUser(id) {
-            if (id === me.id) return alert("No puedes eliminar tu propio usuario");
-            if (!confirm("¿Eliminar usuario?")) return;
+            if (!isAdmin()) return alert('Solo un administrador puede eliminar usuarios');
+            const me = currentUser();
+            const user = db.users.find(u => u.id === id);
+            if (!user) return;
+
+            const adminCount = db.users.filter(u => u.role === 'admin').length;
+            if (user.role === 'admin' && adminCount <= 1) return alert('Debe existir al menos un administrador');
+            if (me && me.id === id) return alert('No puedes eliminar tu propio usuario');
+
+            if (!confirm(`¿Eliminar usuario "${user.username}"?`)) return;
+
             db.users = db.users.filter(u => u.id !== id);
+            saveDB();
             renderUsers();
+            attachStickyShadow();
         }
 
-        function can(role) {
-            return me.role === role || me.role === 'admin';
+        function togglePassword(id) {
+            if (!isAdmin()) return;
+            const span = document.getElementById('pwd-' + id);
+            const btn = document.getElementById('btn-eye-' + id);
+            if (!span || !btn) return;
+
+            const visible = span.getAttribute('data-visible') === '1';
+            if (visible) {
+                span.textContent = '••••••';
+                span.setAttribute('data-visible', '0');
+                btn.textContent = '👁 Ver';
+            } else {
+                const real = span.getAttribute('data-pwd') || '';
+                span.textContent = real;
+                span.setAttribute('data-visible', '1');
+                btn.textContent = '🙈 Ocultar';
+            }
+        }
+
+        function renderUsers() {
+            const container = document.getElementById('listUsers');
+            const count = document.getElementById('usersCount');
+            container.innerHTML = '';
+
+            if (!db.users || db.users.length === 0) {
+                container.innerHTML = '<p class="text-muted">No hay usuarios registrados.</p>';
+                count.textContent = '0';
+                return;
+            }
+
+            count.textContent = String(db.users.length);
+
+            db.users.forEach(u => {
+                const row = document.createElement('div');
+                row.className = 'user-row p-3 rounded-xl border d-flex justify-content-between align-items-center mb-2';
+                const isMe = (currentUser() && currentUser().id === u.id);
+
+                row.innerHTML = `
+          <div class="text-start">
+            <div class="fw-bold">${u.username}</div>
+            <div>${u.name || ''}</div>
+            <span class="badge bg-secondary text-uppercase mt-1">${u.role}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span id="pwd-${u.id}" class="badge bg-dark" data-pwd="${u.password}" data-visible="0">••••••</span>
+            ${isAdmin() ? `<button id="btn-eye-${u.id}" class="btn btn-sm btn-outline-primary" onclick="togglePassword('${u.id}')">👁 Ver</button>` : ''}
+            ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger" ${isMe ? 'disabled' : ''} onclick="deleteUser('${u.id}')">Eliminar</button>` : ''}
+          </div>
+        `;
+                container.appendChild(row);
+            });
         }
 
         function logout() {
+            sessionStorage.removeItem('inventrackUser');
             window.location.href = "../index.html";
         }
     </script>
-
 </body>
 
 </html>
