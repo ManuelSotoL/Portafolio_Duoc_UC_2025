@@ -1,7 +1,7 @@
 // ------------------------
-// Base de datos
+// Base de datos (solo en memoria)
 // ------------------------
-let db = JSON.parse(localStorage.getItem("inventrackDB")) || {
+let db = {
     products: [],
     warehouses: [],
     movements: [],
@@ -9,11 +9,6 @@ let db = JSON.parse(localStorage.getItem("inventrackDB")) || {
         { id: "usr1", username: "admin", password: "123456", role: "admin" }
     ]
 };
-
-// Guardar DB en localStorage
-function saveDB() {
-    localStorage.setItem("inventrackDB", JSON.stringify(db));
-}
 
 // ------------------------
 // Manejo de sesión
@@ -38,7 +33,6 @@ function registerUser(username, password, role = "visor") {
 
     const newUser = { id: "usr" + Date.now(), username, password, role };
     db.users.push(newUser);
-    saveDB();
     sessionStorage.setItem("inventrackUser", JSON.stringify(newUser)); // Inicia sesión al registrar
     alert("Registro exitoso ✅");
     window.location.href = "Pages/dashboard.html";
@@ -75,7 +69,6 @@ function addProduct() {
     db.warehouses.forEach(w => stocks[w.id] = 0);
 
     db.products.push({ id, sku, name, minStock, stocks });
-    saveDB();
     renderProducts();
 
     document.getElementById("inputSku").value = "";
@@ -106,7 +99,6 @@ function deleteProduct(id) {
     if (!confirm("¿Eliminar producto?")) return;
     db.products = db.products.filter(p => p.id !== id);
     db.movements = db.movements.filter(m => m.productId !== id);
-    saveDB();
     renderProducts();
 }
 
@@ -125,7 +117,6 @@ function addWarehouse() {
     const id = "bod" + Date.now();
     db.products.forEach(p => p.stocks[id] = 0);
     db.warehouses.push({ id, name });
-    saveDB();
     document.getElementById("inputWarehouse").value = "";
     renderWarehouses();
 }
@@ -150,7 +141,6 @@ function deleteWarehouse(id) {
     if (!confirm("¿Eliminar bodega? Se perderán existencias")) return;
     db.warehouses = db.warehouses.filter(w => w.id !== id);
     db.products.forEach(p => delete p.stocks[id]);
-    saveDB();
     renderWarehouses();
 }
 
@@ -189,7 +179,6 @@ function addMovement() {
     });
 
     db.movements.unshift(movement);
-    saveDB();
     renderMovements();
 }
 
@@ -250,7 +239,6 @@ function deleteUser(id) {
     if (id === me.id) return alert("No puedes eliminar tu propio usuario");
     if (!confirm("Eliminar usuario?")) return;
     db.users = db.users.filter(u => u.id !== id);
-    saveDB();
     renderUsers();
 }
 
