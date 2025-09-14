@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Movimientos - Inventrack</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=3) }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+</head>
+
+<body onload="initMovements()">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack" class="me-2" />
+                <span class="text-dark">Inventrack</span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="/pagina_principal">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Panel</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('productos') }}">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('bodegas') }}">Bodegas</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="{{ url_for('movimientos') }}">Movimientos</a>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes') }}">Reportes</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-1"></i> {{ usuario }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
+                            <li>
+                                <a class="dropdown-item" href="/mi_perfil">
+                                    <i class="fas fa-user"></i> Mi Perfil
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt"></i> Salir
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container-dashboard">
+        <h2 class="section-title text-center">Gestión de Movimientos</h2>
+
+        <div class="row g-4 w-100">
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">Registrar Movimiento</div>
+                    <div class="card-body" id="movementFormContainer"></div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm card-scroll">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Historial de Movimientos</span>
+                        <button class="btn btn-sm btn-success" onclick="exportMovementsCSV()">Exportar CSV</button>
+                    </div>
+                    <div class="card-body">
+                        <input type="text" id="searchMov" class="form-control mb-3" placeholder="Buscar movimientos..."
+                            oninput="renderMovements()">
+                        <div class="scroll-body">
+                            <div id="movementsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
+        function requireSession() {
+            if (!IS_AUTH) {
+                window.location.href = "{{ url_for('login') }}";
+                return false;
+            }
+            return true;
+        }
+        function logout() {
+            try { sessionStorage.removeItem('inventrackUser'); } catch { }
+            window.location.href = "{{ url_for('logout') }}";
+        }
+
+
+        const LS_KEY = 'inventrackDB';
+        function safeParse(json, fallback) { try { return JSON.parse(json); } catch { return fallback; } }
+        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+        function loadDB() {
+            const base = { products: [], warehouses: [], movements: [], users: [] };
+            const raw = localStorage.getItem(LS_KEY);
+            const parsed = safeParse(raw, base);
+
+            parsed.products = Array.isArray(parsed.products) ? parsed.products : [];
+            parsed.warehouses = Array.isArray(parsed.warehouses) ? parsed.warehouses : [];
+            parsed.movements = Array.isArray(parsed.movements) ? parsed.movements : [];
+            return parsed;
+        }
+        let db = loadDB();
+
+        function ensureStocksForWarehouses() {
+            db.products = db.products.map(p => ({
+                ...p,
+                stocks: db.warehouses.reduce((acc, w) => {
+                    acc[w.id] = typeof acc[w.id] === 'number' ? acc[w.id] : 0;
+                    return acc;
+                }, { ...(p.stocks || {}) })
+            }));
+        }
+
+        function currentUser() { try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; } }
+        function canManageMovements() {
+            const u = currentUser();
+            return u && (u.role === 'admin' || u.role === 'operador');
+        }
+
+        function initMovements() {
+            if (!requireSession()) return;
+            ensureStocksForWarehouses();
+            saveDB();
+            renderMovementForm();
+            renderSelectors();
+            renderMovements();
+            const typeSel = document.getElementById('movType');
+            if (typeSel) {
+                typeSel.addEventListener('change', toggleWarehouseFields);
+                toggleWarehouseFields();
+            }
+        }
+
+        function renderMovementForm() {
+            const c = document.getElementById('movementFormContainer');
+            if (!canManageMovements()) {
+                c.innerHTML = '<p class="text-muted">No tienes permisos para registrar movimientos.</p>';
+                return;
+            }
+            c.innerHTML = `
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Tipo</label>
+            <select id="movType" class="form-select">
+              <option value="IN">Entrada</option>
+              <option value="OUT">Salida</option>
+              <option value="TRANSFER">Transferencia</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Producto</label>
+            <select id="movProduct" class="form-select"></select>
+          </div>
+          <div class="col-12" id="fromWDiv">
+            <label class="form-label">Desde</label>
+            <select id="movFrom" class="form-select"></select>
+          </div>
+          <div class="col-12" id="toWDiv">
+            <label class="form-label">Hacia</label>
+            <select id="movTo" class="form-select"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Cantidad</label>
+            <input type="number" id="movQty" class="form-control" min="1" step="1"
+                   onkeydown="if(['e','E','-','+','.'].includes(event.key)) event.preventDefault();">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nota</label>
+            <input type="text" id="movNote" class="form-control" placeholder="OC-123, ajuste, etc.">
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary w-100" onclick="addMovement()">Registrar</button>
+          </div>
+        </div>`;
+        }
+
+        function toggleWarehouseFields() {
+            const type = document.getElementById('movType').value;
+            document.getElementById('fromWDiv').style.display = (type === "OUT" || type === "TRANSFER") ? 'block' : 'none';
+            document.getElementById('toWDiv').style.display = (type === "IN" || type === "TRANSFER") ? 'block' : 'none';
+        }
+
+        function renderSelectors() {
+            const prodSelect = document.getElementById('movProduct');
+            const from = document.getElementById('movFrom');
+            const to = document.getElementById('movTo');
+
+            if (prodSelect) {
+                prodSelect.innerHTML = '';
+                db.products.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = `${p.name} (${p.sku})`;
+                    prodSelect.appendChild(opt);
+                });
+            }
+
+            if (from && to) {
+                from.innerHTML = '';
+                to.innerHTML = '';
+                db.warehouses.forEach(w => {
+                    const of = document.createElement('option'); of.value = w.id; of.textContent = w.name; from.appendChild(of);
+                    const ot = document.createElement('option'); ot.value = w.id; ot.textContent = w.name; to.appendChild(ot);
+                });
+            }
+        }
+
+        function addMovement() {
+            if (!canManageMovements()) return alert("No tienes permiso para registrar movimientos");
+            const type = document.getElementById('movType').value;
+            const productId = document.getElementById('movProduct').value;
+            const fromW = document.getElementById('movFrom').value;
+            const toW = document.getElementById('movTo').value;
+            const qty = Math.max(1, Number(document.getElementById('movQty').value || 0));
+            const note = document.getElementById('movNote').value.trim();
+
+            if (!productId || !qty) return alert("Seleccione producto y una cantidad válida (>=1)");
+            const product = db.products.find(p => p.id === productId);
+            if (!product) return;
+
+            if (type === "OUT" && (product.stocks[fromW] || 0) < qty) return alert("Stock insuficiente");
+            if (type === "TRANSFER") {
+                if (fromW === toW) return alert("Origen y destino no pueden ser iguales");
+                if ((product.stocks[fromW] || 0) < qty) return alert("Stock insuficiente en origen");
+            }
+
+            const movement = { id: 'm' + Date.now(), type, productId, qty, fromW, toW, date: new Date().toLocaleString(), note };
+            if (type === "IN" && toW) product.stocks[toW] = (product.stocks[toW] || 0) + qty;
+            if (type === "OUT" && fromW) product.stocks[fromW] = (product.stocks[fromW] || 0) - qty;
+            if (type === "TRANSFER" && fromW && toW) {
+                product.stocks[fromW] -= qty;
+                product.stocks[toW] = (product.stocks[toW] || 0) + qty;
+            }
+
+            db.movements.unshift(movement);
+            saveDB();
+            document.getElementById('movQty').value = '';
+            document.getElementById('movNote').value = '';
+            renderMovements();
+        }
+
+        function renderMovements() {
+            const search = (document.getElementById('searchMov').value || '').toLowerCase();
+            const container = document.getElementById('movementsList');
+            container.innerHTML = '';
+            const typeLabels = { IN: "Entrada", OUT: "Salida", TRANSFER: "Transferencia" };
+
+            db.movements
+                .filter(m => {
+                    const p = db.products.find(p2 => p2.id === m.productId);
+                    const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                    const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                    const s = [p?.name, p?.sku, m.type, fromName, toName, m.note].join(' ').toLowerCase();
+                    return s.includes(search);
+                })
+                .forEach(m => {
+                    const p = db.products.find(p2 => p2.id === m.productId);
+                    const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                    const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                    const div = document.createElement('div');
+                    div.className = 'movement-card d-flex justify-content-between align-items-center';
+                    div.innerHTML = `
+            <div>
+              <strong>${typeLabels[m.type]}</strong> - ${p?.name || ''} (${p?.sku || ''})<br>
+              ${fromName ? 'Desde: ' + fromName : ''} ${toName ? ' → ' + toName : ''}<br>
+              Cantidad: ${m.qty}<br>
+              Nota: ${m.note || '---'}<br>
+              <small>${m.date}</small>
+            </div>
+            ${canManageMovements() ? `
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteMovement('${m.id}')">Eliminar</button>
+            ` : ``}
+          `;
+                    container.appendChild(div);
+                });
+        }
+
+        function deleteMovement(id) {
+            if (!canManageMovements()) return;
+            if (!confirm("¿Eliminar este movimiento?")) return;
+            db.movements = db.movements.filter(m => m.id !== id);
+            saveDB();
+            renderMovements();
+        }
+
+        function exportMovementsCSV() {
+            if (!db.movements.length) return alert("No hay movimientos para exportar");
+            const rows = [["ID", "Tipo", "Producto", "SKU", "Desde", "Hacia", "Cantidad", "Nota", "Fecha"]];
+            db.movements.forEach(m => {
+                const p = db.products.find(p => p.id === m.productId);
+                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                rows.push([m.id, m.type, p?.name || '', p?.sku || '', fromName, toName, m.qty, m.note, m.date]);
+            });
+
+            const csv = rows.map(r =>
+                r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(",")
+            ).join("\n");
+
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `movimientos_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+
+</html>
