@@ -6,31 +6,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Reportes - Inventrack</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=3) }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
 </head>
 
 <body onload="initReports()">
-
-    <nav class="navbar navbar-expand-lg bg-body-tertiary shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
         <div class="container-fluid">
-            <a class="navbar-brand" href="dashboard.html">
-                <img src="../Img/logo.png" width="60" alt="Inventrack logo">
-                <strong>Inventrack</strong>
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack logo"
+                    class="me-2" />
+                <span class="text-dark">Inventrack</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#navbarSupportedContent">
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Inicio</a></li>
-                    <li class="nav-item"><a class="nav-link" href="productos.html">Productos</a></li>
-                    <li class="nav-item"><a class="nav-link" href="bodegas.html">Bodegas</a></li>
-                    <li class="nav-item"><a class="nav-link" href="movimientos.html">Movimientos</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="reportes.html">Reportes</a></li>
-                    <li class="nav-item"><a class="nav-link" href="usuarios.html">Usuarios</a></li>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="/pagina_principal">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Panel</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('productos') }}">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('bodegas') }}">Bodegas</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('movimientos') }}">Movimientos</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="{{ url_for('reportes') }}">Reportes</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-1"></i> {{ usuario }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
+                            <li>
+                                <a class="dropdown-item" href="/mi_perfil">
+                                    <i class="fas fa-user"></i> Mi Perfil
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt"></i> Salir
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
                 </ul>
-                <button class="btn btn-danger" onclick="logout()">Salir</button>
             </div>
         </div>
     </nav>
@@ -96,6 +121,19 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
+        function requireSession() {
+            if (!IS_AUTH) {
+                window.location.href = "{{ url_for('login') }}";
+                return false;
+            }
+            return true;
+        }
+        function logout() {
+            try { sessionStorage.removeItem('inventrackUser'); } catch { }
+            window.location.href = "{{ url_for('logout') }}";
+        }
+
         const LS_KEY = 'inventrackDB';
 
         function loadDB() {
@@ -119,7 +157,6 @@
             localStorage.setItem(LS_KEY, JSON.stringify(seed));
             return seed;
         }
-
         function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
 
         function ensureStocksForWarehouses() {
@@ -136,6 +173,7 @@
         let filters = { q: '', wid: '', onlyLow: false };
 
         function initReports() {
+            if (!requireSession()) return;
             ensureStocksForWarehouses();
             saveDB();
 
@@ -280,8 +318,6 @@
             a.download = `alertas_stock_bajo_${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
         }
-
-        function logout() { window.location.href = "../index.html"; }
     </script>
 </body>
 
