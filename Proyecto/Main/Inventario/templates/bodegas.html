@@ -6,29 +6,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bodegas - Inventrack</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=4) }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
 </head>
 
 <body onload="initWarehouses()">
-    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
         <div class="container-fluid">
-            <a class="navbar-brand" href="dashboard.html">
-                <img src="../Img/logo.png" width="80" alt="Inventrack" /><strong> Inventrack</strong>
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack" class="me-2" />
+                <span class="text-dark">Inventrack</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#navbarSupportedContent">
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Inicio</a></li>
-                    <li class="nav-item"><a class="nav-link" href="productos.html">Productos</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="bodegas.html">Bodegas</a></li>
-                    <li class="nav-item"><a class="nav-link" href="movimientos.html">Movimientos</a></li>
-                    <li class="nav-item"><a class="nav-link" href="reportes.html">Reportes</a></li>
-                    <li class="nav-item"><a class="nav-link" href="usuarios.html">Usuarios</a></li>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="/pagina_principal">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Panel</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('productos') }}">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="{{ url_for('bodegas') }}">Bodegas</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('movimientos') }}">Movimientos</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes') }}">Reportes</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-1"></i> {{ usuario }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
+                            <li>
+                                <a class="dropdown-item" href="/mi_perfil">
+                                    <i class="fas fa-user"></i> Mi Perfil
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt"></i> Salir
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
                 </ul>
-                <button class="btn btn-danger" type="button" onclick="logout()">Salir</button>
             </div>
         </div>
     </nav>
@@ -78,7 +104,21 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
     <script>
+        const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
+        function requireSession() {
+            if (!IS_AUTH) {
+                window.location.href = "{{ url_for('login') }}"; // <-- corregido
+                return null;
+            }
+            return true;
+        }
+        function logout() {
+            try { sessionStorage.removeItem("inventrackUser"); } catch { }
+            window.location.href = "{{ url_for('logout') }}";
+        }
+
         const STORAGE_KEY = "inventrackDB";
         let db = loadDB();
 
@@ -103,10 +143,13 @@
         }
 
         function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
-        function getCurrentUser() { try { return JSON.parse(sessionStorage.getItem("inventrackUser")) || null; } catch { return null; } }
-        function requireSession() { const u = getCurrentUser(); if (!u) { window.location.href = "../index.html"; return null; } return u; }
-        function can(role) { const u = getCurrentUser(); return !!u && (u.role === "admin" || u.role === role); }
-        function logout() { sessionStorage.removeItem("inventrackUser"); window.location.href = "../index.html"; }
+
+        function can(role) {
+            try {
+                const u = JSON.parse(sessionStorage.getItem("inventrackUser")) || null;
+                return !!u && (u.role === "admin" || u.role === role);
+            } catch { return false; }
+        }
 
         function ensureStocksForWarehouses() {
             db.products = db.products.map(p => {
@@ -140,8 +183,7 @@
         <div class="d-flex gap-2">
           <input type="text" id="warehouseName" class="form-control" placeholder="Nombre de bodega">
           <button class="btn btn-primary" onclick="addWarehouse()">Agregar</button>
-        </div>
-      `;
+        </div>`;
         }
 
         function renderWarehouses() {
@@ -170,8 +212,7 @@
           </div>
           <div>
             ${can("admin") ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteWarehouse('${w.id}')">Eliminar</button>` : ""}
-          </div>
-        `;
+          </div>`;
                 container.appendChild(item);
             });
         }
@@ -245,8 +286,7 @@
                      onkeydown="if(event.key==='e'||event.key==='-')event.preventDefault();">
             </td>
             <td class="text-end">${totalAll}</td>
-          </tr>
-        `;
+          </tr>`;
             }).join("");
 
             container.innerHTML = `
@@ -262,8 +302,7 @@
             </thead>
             <tbody>${rows}</tbody>
           </table>
-        </div>
-      `;
+        </div>`;
         }
 
         function toggleAssignEditability() {
