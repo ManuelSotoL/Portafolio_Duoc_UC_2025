@@ -1,5 +1,5 @@
 /* =========================
-   RESET & BASE
+   RESET / BASE
 ========================= */
 * {
   margin: 0;
@@ -10,7 +10,6 @@
 }
 
 :root {
-  /* Paleta / ajustes rápidos */
   --brand: #04bd7d;
   --brand-600: #039c67;
   --bg-card: rgba(44, 47, 53, 0.95);
@@ -23,7 +22,7 @@
 body {
   width: 100%;
   min-height: 100vh;
-  background: url("../Img/IMG3.png") repeat center center;
+  background: url("../img/img.png") repeat center center;
   background-size: cover;
   color: var(--text-light);
 }
@@ -44,7 +43,7 @@ body {
 /* =========================
    LOGIN / REGISTRO
 ========================= */
-.container {
+.auth-container {
   width: 100%;
   min-height: 100vh;
   display: flex;
@@ -52,100 +51,55 @@ body {
   align-items: center;
 }
 
-.form-content {
+/* Tarjeta de login */
+.login-card {
   width: 100%;
-  max-width: 450px;
+  max-width: 420px;
+  border-radius: 15px;
   background-color: var(--bg-card);
-  padding: 50px 60px 70px;
-  text-align: center;
-  border-radius: 25px;
+  color: var(--text-light);
   box-shadow: var(--shadow-lg);
 }
-.form-content h1 {
-  font-size: 30px;
-  margin-bottom: 60px;
+
+.login-card .card-header {
+  background: transparent;
   color: var(--text-light);
-  position: relative;
-}
-.form-content h1::after {
-  content: "";
-  width: 30px;
-  height: 4px;
-  border-radius: 3px;
-  background: var(--brand);
-  position: absolute;
-  bottom: -12px;
-  left: 50%;
-  transform: translateX(-50%);
+  font-size: 1.3rem;
 }
 
-/* Inputs */
-.input-field {
-  background: #515966;
-  margin: 15px 0;
-  border-radius: 8px;
+.input-with-icon {
+  position: relative;
   display: flex;
   align-items: center;
-  overflow: hidden;
-  transition: 0.3s;
-}
-.input-field i {
-  margin-left: 15px;
-  color: var(--brand);
-  font-size: 18px;
-}
-input,
-select {
-  width: 100%;
-  padding: 15px;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-light);
-  font-size: 15px;
-}
-input::placeholder {
-  color: #ddd;
-}
-.input-field input:focus {
-  border-bottom: 2px solid var(--brand);
 }
 
-/* Texto adicional */
-form p {
-  text-align: left;
-  color: #ccc;
-  font-size: 13px;
-  margin-top: 10px;
-}
-form p a {
+.input-with-icon i {
+  position: absolute;
+  left: 12px;
   color: var(--brand);
-  font-weight: bold;
-}
-
-/* Botones Login */
-.btn-field {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 30px;
-}
-.btn-field button {
-  flex-basis: 48%;
   font-size: 16px;
-  background-color: #007bff;
-  color: #fff;
-  height: 45px;
-  border-radius: 12px;
+}
+
+.input-with-icon input {
+  padding-left: 36px; /* espacio para el ícono */
+  background: #515966;
   border: none;
+  color: var(--text-light);
+}
+
+.input-with-icon input::placeholder {
+  color: #ccc;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  color: #aaa;
 }
-.btn-field button:hover {
-  background-color: #0056b3;
-}
-.btn-field button.disable {
-  background-color: #eaeaea;
-  color: #2c2f35;
+
+.toggle-password:hover {
+  color: var(--brand);
 }
 
 /* =========================
@@ -162,14 +116,14 @@ main.container {
   padding: 40px 20px;
   display: flex;
   flex-direction: column;
-  align-items: center; /* centrado en móvil */
-  text-align: center; /* centrado en móvil */
+  align-items: center;
+  text-align: center;
 }
 
 @media (min-width: 576px) {
   .container-dashboard,
   .container-page {
-    align-items: stretch; /* a la izquierda en >= sm */
+    align-items: stretch;
     text-align: left;
   }
 }
@@ -276,7 +230,6 @@ ul {
   border-left: 4px solid var(--brand);
 }
 
-/* Grid de estadísticas (dashboard) */
 .stats-grid .col > .card {
   height: 100%;
 }
@@ -284,7 +237,6 @@ ul {
   color: rgba(255, 255, 255, 0.75) !important;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .row.g-4 {
     flex-direction: column;
@@ -294,7 +246,6 @@ ul {
 /* =========================
    SISTEMA DE SCROLL REUTILIZABLE
 ========================= */
-/* Uso de .card-scroll en la card:*/
 .card-scroll {
   --card-max-h: 70vh;
   max-height: var(--card-max-h);
@@ -314,7 +265,7 @@ ul {
 .card-scroll .card-body {
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* el scroll sucede en .scroll-body */
+  overflow: hidden;
 }
 .card-scroll .scroll-body {
   flex: 1 1 auto;
@@ -322,24 +273,17 @@ ul {
 }
 
 /* =========================
-   ESPECÍFICOS: DASHBOARD
+   ESPECÍFICOS
 ========================= */
-/* Solo el contenido de alertas usa blanco forzado (mantiene contraste) */
 #lowStockContainer,
 #lowStockContainer * {
   color: #fff !important;
 }
 
-/* =========================
-   ESPECÍFICOS: PRODUCTOS
-========================= */
 .product-col > .card {
   height: 100%;
 }
 
-/* =========================
-   ESPECÍFICOS: REPORTES
-========================= */
 #reportLowStockContainer,
 #reportLowStockContainer * {
   color: #000 !important;
@@ -369,9 +313,6 @@ ul {
   }
 }
 
-/* =========================
-   ESPECÍFICOS: USUARIOS
-========================= */
 .user-row {
   gap: 12px;
   flex-wrap: wrap;
@@ -385,9 +326,6 @@ ul {
   }
 }
 
-/* =========================
-   ESPECÍFICOS: BODEGAS
-========================= */
 .scroll-list {
   max-height: 45vh;
   overflow-y: auto;
@@ -410,7 +348,6 @@ ul {
   vertical-align: middle;
 }
 
-/* =========================
-   ESPECÍFICOS: MOVIMIENTOS
-========================= */
-/* (hereda .card-scroll genérico) */
+.navbar .nav-link {
+  font-weight: bold !important; /* letras de navbar en negrita */
+}
