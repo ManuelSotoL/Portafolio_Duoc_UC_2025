@@ -128,51 +128,49 @@
             try { sessionStorage.removeItem('inventrackUser'); } catch { }
             window.location.href = "{{ url_for('logout') }}";
         }
-        const LS_KEY = 'inventrackDB';
+        
+        let allUsers = [];
+        let currentUserRole = 'visor'; // Valor por defecto
 
-        function loadDB() {
-            const raw = localStorage.getItem(LS_KEY);
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (!Array.isArray(parsed.users)) parsed.users = [];
-                    if (!parsed.users.some(u => u.role === 'admin')) {
-                        parsed.users.push({
-                            id: 'usr_' + Date.now(),
-                            name: 'Administrador',
-                            username: 'admin@local',
-                            password: '123456',
-                            role: 'admin'
-                        });
-                    }
-                    return parsed;
-                } catch { }
-            }
-            const seed = {
-                products: [], warehouses: [], movements: [],
-                users: [{
-                    id: 'usr_' + Date.now(),
-                    name: 'Administrador',
-                    username: 'admin@local',
-                    password: '123456',
-                    role: 'admin'
-                }]
-            };
-            localStorage.setItem(LS_KEY, JSON.stringify(seed));
-            return seed;
+        async function isAdmin() {
+            return currentUserRole === 'admin';
         }
 
-        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
-        function currentUser() { try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; } }
-        function isAdmin() { const me = currentUser(); return !!me && me.role === 'admin'; }
-
-        let db = loadDB();
-
-        function initUsers() {
+        async function initUsers() {
             if (!requireSession()) return;
-            setupUserFormPermissions();
-            renderUsers();
+            await fetchUserRole();
+            const userIsAdmin = await isAdmin();
+            if (!userIsAdmin) {
+                disableUserForm();
+            }
+            await fetchUsers();
             attachStickyShadow();
+        }
+
+        async function fetchUserRole() {
+            try {
+                const response = await fetch('/api/user_role');
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUserRole = data.role;
+                }
+            } catch (error) {
+                console.error('Error al obtener el rol del usuario:', error);
+            }
+        }
+
+        async function fetchUsers() {
+            try {
+                const response = await fetch('/api/users');
+                if (response.ok) {
+                    allUsers = await response.json();
+                    renderUsers();
+                } else {
+                    console.error('Error al obtener la lista de usuarios');
+                }
+            } catch (error) {
+                console.error('Error de red al obtener usuarios:', error);
+            }
         }
 
         function attachStickyShadow() {
@@ -204,12 +202,10 @@
             body.appendChild(tip);
         }
 
-        function setupUserFormPermissions() {
-            if (!isAdmin()) disableUserForm();
-        }
-
-        function addUser() {
-            if (!isAdmin()) return alert('Solo un administrador puede crear usuarios');
+        async function addUser() {
+            if (!await isAdmin()) {
+                return alert('Solo un administrador puede crear usuarios');
+            }
 
             const name = document.getElementById('userName').value.trim();
             const username = document.getElementById('userUsername').value.trim();
@@ -219,54 +215,77 @@
             if (!name || !username || !password) return alert("Complete todos los campos");
             if (!username.includes('@')) return alert('El usuario debe incluir "@" (ej: correo@dominio)');
             if (password.length < 4) return alert("La contraseña debe tener al menos 4 caracteres");
-            if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) return alert("Ya existe un usuario con ese nombre");
 
-            db.users.push({ id: 'usr_' + Date.now(), name, username, password, role });
-            saveDB();
+            const userData = { name, username, password, role };
 
-            document.getElementById('userName').value = '';
-            document.getElementById('userUsername').value = '';
-            document.getElementById('userPassword').value = '';
-            document.getElementById('userRole').value = 'operador';
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
 
-            renderUsers();
-            attachStickyShadow();
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message);
+                    document.getElementById('userName').value = '';
+                    document.getElementById('userUsername').value = '';
+                    document.getElementById('userPassword').value = '';
+                    document.getElementById('userRole').value = 'operador';
+                    fetchUsers(); // Refrescar la lista
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert('Error de conexión. Intente de nuevo.');
+            }
         }
 
-        function deleteUser(id) {
-            if (!isAdmin()) return alert('Solo un administrador puede eliminar usuarios');
-            const me = currentUser();
-            const user = db.users.find(u => u.id === id);
+        async function changeRole(userId, newRole) {
+            if (!await isAdmin()) {
+                alert('No tienes permisos para cambiar roles.');
+                return;
+            }
+            if (!confirm(`¿Cambiar el rol del usuario a "${newRole}"?`)) return;
+
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert(result.message);
+                    fetchUsers();
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert('Error de conexión. Intente de nuevo.');
+            }
+        }
+
+        async function deleteUser(id) {
+            const user = allUsers.find(u => u._id === id);
             if (!user) return;
+            if (!await isAdmin()) return alert('Solo un administrador puede eliminar usuarios');
 
-            const adminCount = db.users.filter(u => u.role === 'admin').length;
-            if (user.role === 'admin' && adminCount <= 1) return alert('Debe existir al menos un administrador');
-            if (me && me.id === id) return alert('No puedes eliminar tu propio usuario');
+            if (!confirm(`¿Eliminar usuario "${user.usuario}"?`)) return;
 
-            if (!confirm(`¿Eliminar usuario "${user.username}"?`)) return;
-
-            db.users = db.users.filter(u => u.id !== id);
-            saveDB();
-            renderUsers();
-            attachStickyShadow();
-        }
-
-        function togglePassword(id) {
-            if (!isAdmin()) return;
-            const span = document.getElementById('pwd-' + id);
-            const btn = document.getElementById('btn-eye-' + id);
-            if (!span || !btn) return;
-
-            const visible = span.getAttribute('data-visible') === '1';
-            if (visible) {
-                span.textContent = '••••••';
-                span.setAttribute('data-visible', '0');
-                btn.textContent = '👁 Ver';
-            } else {
-                const real = span.getAttribute('data-pwd') || '';
-                span.textContent = real;
-                span.setAttribute('data-visible', '1');
-                btn.textContent = '🙈 Ocultar';
+            try {
+                const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (response.ok) {
+                    alert(result.message);
+                    fetchUsers(); // Refrescar la lista
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                alert('Error de conexión. Intente de nuevo.');
             }
         }
 
@@ -275,32 +294,43 @@
             const count = document.getElementById('usersCount');
             container.innerHTML = '';
 
-            if (!db.users || db.users.length === 0) {
+            if (!allUsers || allUsers.length === 0) {
                 container.innerHTML = '<p class="text-muted">No hay usuarios registrados.</p>';
                 count.textContent = '0';
                 return;
             }
 
-            count.textContent = String(db.users.length);
+            count.textContent = String(allUsers.length);
+            const currentUser = '{{ session.get("usuario") }}';
+            const userIsAdmin = currentUserRole === 'admin';
 
-            db.users.forEach(u => {
+            allUsers.forEach(u => {
                 const row = document.createElement('div');
                 row.className = 'user-row p-3 rounded border d-flex justify-content-between align-items-center mb-2';
-                const me = currentUser();
-                const isMe = (me && me.id === u.id);
+                const isMe = (currentUser === u.usuario);
+
+                let roleSelect = `<span class="badge bg-secondary text-uppercase">${u.role}</span>`;
+                if (userIsAdmin && !isMe) {
+                    roleSelect = `
+                        <select class="form-select form-select-sm" 
+                            onchange="changeRole('${u._id}', this.value)">
+                            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrador</option>
+                            <option value="operador" ${u.role === 'operador' ? 'selected' : ''}>Operador</option>
+                            <option value="visor" ${u.role === 'visor' ? 'selected' : ''}>Visor</option>
+                        </select>
+                    `;
+                }
 
                 row.innerHTML = `
-          <div class="text-start">
-            <div class="fw-bold">${u.username}</div>
-            <div>${u.name || ''}</div>
-            <span class="badge bg-secondary text-uppercase mt-1">${u.role}</span>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            <span id="pwd-${u.id}" class="badge bg-dark" data-pwd="${u.password}" data-visible="0">••••••</span>
-            ${isAdmin() ? `<button id="btn-eye-${u.id}" class="btn btn-sm btn-outline-primary" onclick="togglePassword('${u.id}')">👁 Ver</button>` : ''}
-            ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger" ${isMe ? 'disabled' : ''} onclick="deleteUser('${u.id}')">Eliminar</button>` : ''}
-          </div>
-        `;
+                    <div class="text-start">
+                        <div class="fw-bold">${u.usuario}</div>
+                        <div class="mt-1">${roleSelect}</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        ${isMe ? `<span class="text-primary me-2">Tú</span>` : ''}
+                        ${userIsAdmin && !isMe ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u._id}')">Eliminar</button>` : ''}
+                    </div>
+                `;
                 container.appendChild(row);
             });
         }
