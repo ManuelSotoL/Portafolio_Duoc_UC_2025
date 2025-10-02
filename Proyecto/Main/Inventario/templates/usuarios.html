@@ -63,8 +63,8 @@
         <h2 class="section-title text-center">Gestión de Usuarios</h2>
 
         <div class="row g-4 w-100">
-            <div class="col-md-4">
-                <div class="card shadow-sm" id="userFormCard">
+            <div class="col-md-4" id="userFormCard">
+                <div class="card shadow-sm">
                     <div class="card-header">Nuevo Usuario</div>
                     <div class="card-body">
                         <div class="row g-3">
@@ -98,15 +98,16 @@
                     </div>
                 </div>
             </div>
-
             <div class="col-md-8">
                 <div class="card shadow-sm card-scroll" id="usersCard">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>Usuarios Registrados</span>
-                        <span class="badge bg-secondary" id="usersCount">0</span>
+                        <div>
+                            Lista de Usuarios (<span id="usersCount">0</span>)
+                        </div>
                     </div>
                     <div class="card-body">
-                        <div class="scroll-body" id="listUsers"></div>
+                        <div id="listUsers" class="list-group">
+                            </div>
                     </div>
                 </div>
             </div>
@@ -114,37 +115,17 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-
     <script>
-        const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
-        function requireSession() {
-            if (!IS_AUTH) {
-                window.location.href = "{{ url_for('login') }}";
-                return false;
-            }
-            return true;
-        }
-        function logout() {
-            try { sessionStorage.removeItem('inventrackUser'); } catch { }
-            window.location.href = "{{ url_for('logout') }}";
-        }
-        
         let allUsers = [];
-        let currentUserRole = 'visor'; // Valor por defecto
-
-        async function isAdmin() {
-            return currentUserRole === 'admin';
-        }
+        let currentUserRole = 'visor';
+        const userFormCard = document.getElementById('userFormCard');
 
         async function initUsers() {
-            if (!requireSession()) return;
             await fetchUserRole();
-            const userIsAdmin = await isAdmin();
-            if (!userIsAdmin) {
-                disableUserForm();
+            if (currentUserRole !== 'admin') {
+                userFormCard.style.display = 'none';
             }
             await fetchUsers();
-            attachStickyShadow();
         }
 
         async function fetchUserRole() {
@@ -155,137 +136,101 @@
                     currentUserRole = data.role;
                 }
             } catch (error) {
-                console.error('Error al obtener el rol del usuario:', error);
+                console.error('Error fetching user role:', error);
             }
         }
 
         async function fetchUsers() {
             try {
                 const response = await fetch('/api/users');
-                if (response.ok) {
-                    allUsers = await response.json();
-                    renderUsers();
-                } else {
-                    console.error('Error al obtener la lista de usuarios');
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert('Error al cargar usuarios: ' + (error.error || 'Desconocido'));
+                    return;
                 }
+                allUsers = await response.json();
+                renderUsers();
             } catch (error) {
-                console.error('Error de red al obtener usuarios:', error);
+                console.error('Error fetching users:', error);
+                alert('Error de conexión con el servidor.');
             }
-        }
-
-        function attachStickyShadow() {
-            const card = document.getElementById('usersCard');
-            if (!card) return;
-            const scroller = card.querySelector('.scroll-body');
-            if (!scroller) return;
-
-            const toggleShadow = () => {
-                if (scroller.scrollTop > 0) card.classList.add('scrolled');
-                else card.classList.remove('scrolled');
-            };
-            scroller.addEventListener('scroll', toggleShadow);
-            toggleShadow();
-        }
-
-        function disableUserForm() {
-            const card = document.getElementById('userFormCard');
-            if (!card) return;
-            const inputs = card.querySelectorAll('input, select, button');
-            inputs.forEach(el => {
-                el.disabled = true;
-                el.classList.add('disabled');
-            });
-            const body = card.querySelector('.card-body');
-            const tip = document.createElement('div');
-            tip.className = 'text-muted mt-2';
-            tip.textContent = 'No tienes permisos para registrar usuarios.';
-            body.appendChild(tip);
         }
 
         async function addUser() {
-            if (!await isAdmin()) {
-                return alert('Solo un administrador puede crear usuarios');
-            }
-
             const name = document.getElementById('userName').value.trim();
             const username = document.getElementById('userUsername').value.trim();
-            const password = document.getElementById('userPassword').value.trim();
+            const password = document.getElementById('userPassword').value;
             const role = document.getElementById('userRole').value;
 
-            if (!name || !username || !password) return alert("Complete todos los campos");
-            if (!username.includes('@')) return alert('El usuario debe incluir "@" (ej: correo@dominio)');
-            if (password.length < 4) return alert("La contraseña debe tener al menos 4 caracteres");
-
-            const userData = { name, username, password, role };
+            if (!name || !username || !password || !role) {
+                return alert('Por favor, completa todos los campos.');
+            }
 
             try {
                 const response = await fetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
+                    body: JSON.stringify({ name, username, password, role })
                 });
 
                 const result = await response.json();
-
-                if (response.ok) {
-                    alert(result.message);
-                    document.getElementById('userName').value = '';
-                    document.getElementById('userUsername').value = '';
-                    document.getElementById('userPassword').value = '';
-                    document.getElementById('userRole').value = 'operador';
-                    fetchUsers(); // Refrescar la lista
-                } else {
-                    alert(result.error);
+                if (!response.ok) {
+                    return alert('Error: ' + (result.error || 'No se pudo registrar el usuario.'));
                 }
+
+                alert(result.message);
+                document.getElementById('userName').value = '';
+                document.getElementById('userUsername').value = '';
+                document.getElementById('userPassword').value = '';
+                document.getElementById('userRole').value = 'operador';
+                fetchUsers();
             } catch (error) {
-                alert('Error de conexión. Intente de nuevo.');
+                console.error('Error adding user:', error);
+                alert('Error de conexión con el servidor.');
             }
         }
 
-        async function changeRole(userId, newRole) {
-            if (!await isAdmin()) {
-                alert('No tienes permisos para cambiar roles.');
+        async function changeRole(id, newRole) {
+            if (!confirm(`¿Cambiar el rol del usuario a ${newRole}?`)) {
                 return;
             }
-            if (!confirm(`¿Cambiar el rol del usuario a "${newRole}"?`)) return;
 
             try {
-                const response = await fetch(`/api/users/${userId}`, {
+                const response = await fetch(`/api/users/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ role: newRole })
                 });
-
                 const result = await response.json();
-                if (response.ok) {
-                    alert(result.message);
-                    fetchUsers();
-                } else {
-                    alert(result.error);
+                if (!response.ok) {
+                    return alert('Error: ' + (result.error || 'No se pudo actualizar el rol.'));
                 }
+                alert(result.message);
+                fetchUsers();
             } catch (error) {
-                alert('Error de conexión. Intente de nuevo.');
+                console.error('Error changing role:', error);
+                alert('Error de conexión con el servidor.');
             }
         }
 
         async function deleteUser(id) {
-            const user = allUsers.find(u => u._id === id);
-            if (!user) return;
-            if (!await isAdmin()) return alert('Solo un administrador puede eliminar usuarios');
-
-            if (!confirm(`¿Eliminar usuario "${user.usuario}"?`)) return;
+            if (!confirm('¿Estás seguro de eliminar este usuario?')) {
+                return;
+            }
 
             try {
-                const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'DELETE'
+                });
                 const result = await response.json();
-                if (response.ok) {
-                    alert(result.message);
-                    fetchUsers(); // Refrescar la lista
-                } else {
-                    alert(result.error);
+                if (!response.ok) {
+                    return alert('Error: ' + (result.error || 'No se pudo eliminar el usuario.'));
                 }
+                alert(result.message);
+                fetchUsers();
             } catch (error) {
-                alert('Error de conexión. Intente de nuevo.');
+                console.error('Error deleting user:', error);
+                alert('Error de conexión con el servidor.');
             }
         }
 

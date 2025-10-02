@@ -30,6 +30,13 @@ try:
     db = client["bd"]
     collection = db["usuarios"]
     print("Conexión a MongoDB exitosa.")
+
+    # --- IMPLEMENTACIÓN ---
+    # Busca al usuario 'superadm' y le asigna el rol de 'admin' al iniciar la app.
+    # Esto asegura que el usuario siempre tenga los permisos correctos.
+    collection.update_one({"usuario": "superadm"}, {"$set": {"role": "admin"}})
+    print("Rol de 'superadm' verificado y actualizado a 'admin' si existía.")
+
 except Exception as e:
     print(f"Error al conectar a MongoDB: {e}")
 
@@ -54,6 +61,23 @@ def login_required(fn):
             return redirect(url_for("login"))
         return fn(*args, **kwargs)
     return wrapper
+
+# Decorador para controlar el acceso a las rutas
+def role_required(required_roles):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if "usuario" not in session:
+                return jsonify({"error": "Acceso no autorizado."}), 401
+            user = collection.find_one({"usuario": session.get("usuario")})
+            if not user:
+                return jsonify({"error": "Usuario no encontrado."}), 404
+            user_role = user.get("role", "visor") # Default a 'visor' si no está definido
+            if user_role not in required_roles:
+                return jsonify({"error": "No tienes permiso para esta acción."}), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 # --- Email helper ---
 def enviar_email(destinatario, asunto, cuerpo_html):
@@ -87,7 +111,16 @@ def registro():
         usuario = request.form["usuario"].strip()
         email = request.form["email"].strip().lower()
         contrasena = request.form["contrasena"]
-        role = "operador" # Nuevo usuario por defecto es operador
+
+        # Asigna el rol de 'admin' si el usuario es 'superadm', de lo contrario 'visor'
+        if usuario == "superadm":
+            role = "admin"
+        else:
+            role = "visor"
+
+        if collection.find_one({"usuario": usuario}):
+            flash("El nombre de usuario ya está en uso.", "error")
+            return redirect(url_for("registro"))
 
         if collection.find_one({"email": email}):
             flash("El correo electrónico ya está registrado.", "error")
@@ -100,11 +133,12 @@ def registro():
             "contrasena": hashed_password,
             "role": role
         })
-        session["usuario"] = usuario
+        
         flash("¡Registro exitoso! Ya puedes iniciar sesión.", "success")
-        return redirect(url_for("pagina_principal"))
+        return redirect(url_for("login"))
 
     return render_template("register.html")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -115,7 +149,6 @@ def login():
         user = collection.find_one({"usuario": usuario})
         if user and bcrypt.check_password_hash(user["contrasena"], contrasena):
             session["usuario"] = usuario
-            # No mostramos mensaje de "Bienvenido"
             return redirect(url_for("pagina_principal"))
 
         flash("Usuario o contraseña incorrectos.", "error")
@@ -217,26 +250,27 @@ def usuarios():
     return render_template("usuarios.html")
 
 # --- Rutas de API para gestión de usuarios ---
-
 @app.route("/api/user_role")
 @login_required
 def get_user_role():
     user = collection.find_one({"usuario": session["usuario"]})
-    return jsonify({"role": user.get("role", "operador")})
+    return jsonify({"role": user.get("role", "visor")})
 
 @app.route("/api/users", methods=["GET", "POST"])
 @login_required
 def users_api():
     current_user = collection.find_one({"usuario": session["usuario"]})
-    user_role = current_user.get("role", "operador")
+    user_role = current_user.get("role", "visor")
 
     if request.method == "GET":
-        users = list(collection.find({}, {"_id": 1, "usuario": 1, "role": 1}))
+        # Permitir que todos los roles vean la lista de usuarios
+        users = list(collection.find({}, {"_id": 1, "usuario": 1, "role": 1, "email": 1}))
         for user in users:
             user["_id"] = str(user["_id"])
         return jsonify(users), 200
 
     if request.method == "POST":
+        # Solo los administradores pueden crear nuevos usuarios
         if user_role != "admin":
             return jsonify({"error": "No tienes permiso para realizar esta acción."}), 403
 
@@ -249,6 +283,9 @@ def users_api():
         if not all([name, email, contrasena, role]):
             return jsonify({"error": "Faltan datos."}), 400
 
+        if collection.find_one({"usuario": name}):
+            return jsonify({"error": "El nombre de usuario ya está en uso."}), 409
+        
         if collection.find_one({"email": email}):
             return jsonify({"error": "El correo ya está registrado."}), 409
 
@@ -264,10 +301,9 @@ def users_api():
 
 @app.route("/api/users/<user_id>", methods=["PUT", "DELETE"])
 @login_required
+@role_required(["admin"])
 def manage_user(user_id):
     current_user = collection.find_one({"usuario": session["usuario"]})
-    if current_user.get("role") != "admin":
-        return jsonify({"error": "No tienes permiso para realizar esta acción."}), 403
 
     try:
         user_obj_id = ObjectId(user_id)
@@ -278,7 +314,6 @@ def manage_user(user_id):
         data = request.json
         new_role = data.get("role")
         
-        # Validación: un admin no puede cambiar su propio rol
         if current_user["_id"] == user_obj_id:
             return jsonify({"error": "No puedes cambiar tu propio rol."}), 403
 
@@ -304,9 +339,10 @@ def manage_user(user_id):
         collection.delete_one({"_id": user_obj_id})
         return jsonify({"message": "Usuario eliminado con éxito."}), 200
 
-# -------- Manejador de 404 (sin redirección ni flash) --------
+# -------- Manejador de 404 --------
 @app.errorhandler(404)
 def not_found(e):
+    # Ignora errores 404 para archivos estáticos comunes
     if request.path.startswith("/static") or request.path == "/favicon.ico":
         return ("", 404)
     return "Página no encontrada", 404
