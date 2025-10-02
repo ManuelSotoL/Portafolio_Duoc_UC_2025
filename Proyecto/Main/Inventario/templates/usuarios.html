@@ -98,6 +98,7 @@
                     </div>
                 </div>
             </div>
+
             <div class="col-md-8">
                 <div class="card shadow-sm card-scroll" id="usersCard">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -106,8 +107,7 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <div id="listUsers" class="list-group">
-                            </div>
+                        <div id="listUsers" class="list-group"></div>
                     </div>
                 </div>
             </div>
@@ -127,56 +127,6 @@
             }
             await fetchUsers();
         }
-<<<<<<< HEAD
-        function logout() {
-            try { sessionStorage.removeItem('inventrackUser'); } catch { }
-            window.location.href = "{{ url_for('logout') }}";
-        }
-
-        // =======================
-        //  🔌 DESACTIVAR localStorage
-        // =======================
-        // Mantenemos la misma API (loadDB/saveDB) pero:
-        // - loadDB usa memoria en esta pestaña (no localStorage)
-        // - saveDB no hace nada
-        let __DB_MEM = {
-            products: [],
-            warehouses: [],
-            movements: [],
-            users: []
-        };
-
-        function loadDB() {
-            // Mantiene el "seed" de admin en memoria si no existe
-            if (!Array.isArray(__DB_MEM.users)) __DB_MEM.users = [];
-            if (!__DB_MEM.users.some(u => u.role === 'admin')) {
-                __DB_MEM.users.push({
-                    id: 'usr_' + Date.now(),
-                    name: 'Administrador',
-                    username: 'admin@local',
-                    password: '123456',
-                    role: 'admin'
-                });
-            }
-            return __DB_MEM;
-        }
-
-        function saveDB() {
-            // No-op: sin persistencia
-        }
-        // =======================
-
-        function currentUser() { try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; } }
-        function isAdmin() { const me = currentUser(); return !!me && me.role === 'admin'; }
-
-        let db = loadDB();
-
-        function initUsers() {
-            if (!requireSession()) return;
-            setupUserFormPermissions();
-            renderUsers();
-            attachStickyShadow();
-=======
 
         async function fetchUserRole() {
             try {
@@ -204,7 +154,6 @@
                 console.error('Error fetching users:', error);
                 alert('Error de conexión con el servidor.');
             }
->>>>>>> 25694e9dfd2a6fdf385c70be5e427e4a11f07930
         }
 
         async function addUser() {
@@ -217,17 +166,12 @@
                 return alert('Por favor, completa todos los campos.');
             }
 
-<<<<<<< HEAD
-            db.users.push({ id: 'usr_' + Date.now(), name, username, password, role });
-            saveDB(); // no-op
-=======
             try {
                 const response = await fetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, username, password, role })
                 });
->>>>>>> 25694e9dfd2a6fdf385c70be5e427e4a11f07930
 
                 const result = await response.json();
                 if (!response.ok) {
@@ -250,19 +194,6 @@
             if (!confirm(`¿Cambiar el rol del usuario a ${newRole}?`)) {
                 return;
             }
-
-<<<<<<< HEAD
-            const adminCount = db.users.filter(u => u.role === 'admin').length;
-            if (user.role === 'admin' && adminCount <= 1) return alert('Debe existir al menos un administrador');
-            if (me && me.id === id) return alert('No puedes eliminar tu propio usuario');
-
-            if (!confirm(`¿Eliminar usuario "${user.username}"?`)) return;
-
-            db.users = db.users.filter(u => u.id !== id);
-            saveDB(); // no-op
-            renderUsers();
-            attachStickyShadow();
-=======
             try {
                 const response = await fetch(`/api/users/${id}`, {
                     method: 'PUT',
@@ -279,18 +210,14 @@
                 console.error('Error changing role:', error);
                 alert('Error de conexión con el servidor.');
             }
->>>>>>> 25694e9dfd2a6fdf385c70be5e427e4a11f07930
         }
 
         async function deleteUser(id) {
             if (!confirm('¿Estás seguro de eliminar este usuario?')) {
                 return;
             }
-
             try {
-                const response = await fetch(`/api/users/${id}`, {
-                    method: 'DELETE'
-                });
+                const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
                 const result = await response.json();
                 if (!response.ok) {
                     return alert('Error: ' + (result.error || 'No se pudo eliminar el usuario.'));
