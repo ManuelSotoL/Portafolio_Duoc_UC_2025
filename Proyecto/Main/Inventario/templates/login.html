@@ -91,6 +91,14 @@
             });
         })();
     </script>
+
+    <!-- Limpieza opcional para desactivar almacenamiento local -->
+    <script>
+        (function () {
+            try { localStorage.removeItem('inventrackDB'); } catch { }
+            try { sessionStorage.removeItem('inventrackUser'); } catch { }
+        })();
+    </script>
 </body>
 
 </html>

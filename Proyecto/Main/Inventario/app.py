@@ -8,15 +8,15 @@ from sendgrid.helpers.mail import Mail
 from itsdangerous import URLSafeTimedSerializer as Serializer
 from functools import wraps
 
-# Cargar variables de entorno
+# ====================
+#   Config & Setup
+# ====================
 load_dotenv()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 bcrypt = Bcrypt(app)
 
-# Clave secreta para sesiones (fallback en dev)
 app.secret_key = os.getenv("SECRET_KEY") or "dev-secret-change-me"
-# Evitar cache de estáticos en desarrollo
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 # --- MongoDB ---
@@ -37,13 +37,79 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 if not SENDGRID_API_KEY:
     raise ValueError("La variable de entorno SENDGRID_API_KEY no está configurada.")
 
-# Serializador para tokens
+# --- Serializer ---
 serializer = Serializer(app.secret_key, salt="password-reset-salt")
 
-# Inyección global de 'usuario' en todas las plantillas
+# ====================
+#   Helpers de Roles
+# ====================
+
+def seed_admin():
+    """
+    Crea un usuario admin por defecto si no existe ninguno.
+    Variables de entorno opcionales:
+      ADMIN_USER (default: 'admin')
+      ADMIN_EMAIL (default: 'admin@local')
+      ADMIN_PASS (default: '123456')
+    """
+    try:
+        any_admin = collection.find_one({"rol": "admin"})
+        if any_admin:
+            return
+        admin_user = os.getenv("ADMIN_USER", "admin").strip()
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@local").strip().lower()
+        admin_pass = os.getenv("ADMIN_PASS", "123456")
+
+        # Evita duplicados por usuario o email
+        exists = collection.find_one({"$or": [{"usuario": admin_user}, {"email": admin_email}]})
+        if exists:
+            # Si existe pero sin rol, súbelo a admin
+            if exists.get("rol") != "admin":
+                collection.update_one({"_id": exists["_id"]}, {"$set": {"rol": "admin"}})
+            return
+
+        hashed = bcrypt.generate_password_hash(admin_pass).decode("utf-8")
+        collection.insert_one({
+            "usuario": admin_user,
+            "email": admin_email,
+            "contrasena": hashed,
+            "rol": "admin"
+        })
+        print(f"Admin semilla creado: {admin_user} / {admin_email}")
+    except Exception as e:
+        print(f"Error creando admin semilla: {e}")
+
+seed_admin()
+
+def roles_required(*roles):
+    """
+    Decorador opcional para exigir uno de los roles dados.
+    Uso:
+      @app.route('/ruta')
+      @roles_required('admin', 'operador')
+      def vista():
+          ...
+    """
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if "usuario" not in session:
+                return redirect(url_for("login"))
+            user_role = session.get("rol")
+            if roles and user_role not in roles:
+                flash("No tienes permisos para acceder a esta sección.", "error")
+                return redirect(url_for("pagina_principal"))
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# Inyección global de 'usuario' y 'rol' en todas las plantillas
 @app.context_processor
 def inject_user():
-    return {"usuario": session.get("usuario")}
+    return {
+        "usuario": session.get("usuario"),
+        "rol": session.get("rol")
+    }
 
 # Decorador simple para exigir sesión
 def login_required(fn):
@@ -91,14 +157,21 @@ def registro():
             flash("El correo electrónico ya está registrado.", "error")
             return redirect(url_for("registro"))
 
+        # Por defecto, todo usuario creado desde la UI será 'operador'
+        rol_por_defecto = "operador"
+
         hashed_password = bcrypt.generate_password_hash(contrasena).decode("utf-8")
         collection.insert_one({
             "usuario": usuario,
             "email": email,
-            "contrasena": hashed_password
+            "contrasena": hashed_password,
+            "rol": rol_por_defecto
         })
+        # Si quieres iniciar sesión de inmediato tras registrarse:
         session["usuario"] = usuario
-        flash("¡Registro exitoso! Ya puedes iniciar sesión.", "success")
+        session["rol"] = rol_por_defecto
+
+        flash("¡Registro exitoso!", "success")
         return redirect(url_for("pagina_principal"))
 
     return render_template("register.html")
@@ -106,13 +179,13 @@ def registro():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        usuario = request.form["usuario"].strip()
-        contrasena = request.form["contrasena"]
+        usuario = request.form.get("usuario", "").strip()
+        contrasena = request.form.get("contrasena", "")
 
         user = collection.find_one({"usuario": usuario})
         if user and bcrypt.check_password_hash(user["contrasena"], contrasena):
-            session["usuario"] = usuario
-            # No mostramos mensaje de "Bienvenido"
+            session["usuario"] = user["usuario"]
+            session["rol"] = user.get("rol", "operador")  # fallback por si faltara en BD
             return redirect(url_for("pagina_principal"))
 
         flash("Usuario o contraseña incorrectos.", "error")
@@ -123,6 +196,7 @@ def login():
 @app.route("/logout")
 def logout():
     session.pop("usuario", None)
+    session.pop("rol", None)
     flash("Sesión cerrada.", "success")
     return redirect(url_for("login"))
 
@@ -180,7 +254,7 @@ def mi_perfil():
     user = collection.find_one({"usuario": session["usuario"]})
     if not user:
         return redirect(url_for("logout"))
-    return render_template("mi_perfil.html", email=user.get("email"))
+    return render_template("mi_perfil.html", email=user.get("email"), rol=user.get("rol"))
 
 # -------- Módulos --------
 @app.route("/dashboard")
@@ -211,15 +285,15 @@ def reportes():
 @app.route("/usuarios")
 @login_required
 def usuarios():
+    # Si más adelante quieres que sólo 'admin' entre aquí:
+    # @roles_required('admin')
     return render_template("usuarios.html")
 
 # -------- Manejador de 404 (sin redirección ni flash) --------
 @app.errorhandler(404)
 def not_found(e):
-    # Evitar “spam” si falla un estático o el favicon
     if request.path.startswith("/static") or request.path == "/favicon.ico":
         return ("", 404)
-    # Muestra 404 simple; si tienes templates/404.html, puedes renderizarlo
     return "Página no encontrada", 404
 
 if __name__ == "__main__":

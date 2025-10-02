@@ -105,21 +105,14 @@
             window.location.href = "{{ url_for('logout') }}";
         }
 
-
-        const LS_KEY = 'inventrackDB';
-        function safeParse(json, fallback) { try { return JSON.parse(json); } catch { return fallback; } }
-        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+        // ===== LocalStorage DESACTIVADO =====
+        function saveDB() { /* no-op: desactivado */ }
         function loadDB() {
-            const base = { products: [], warehouses: [], movements: [], users: [] };
-            const raw = localStorage.getItem(LS_KEY);
-            const parsed = safeParse(raw, base);
-
-            parsed.products = Array.isArray(parsed.products) ? parsed.products : [];
-            parsed.warehouses = Array.isArray(parsed.warehouses) ? parsed.warehouses : [];
-            parsed.movements = Array.isArray(parsed.movements) ? parsed.movements : [];
-            return parsed;
+            // Estructura vacía (no persiste en el navegador)
+            return { products: [], warehouses: [], movements: [], users: [] };
         }
         let db = loadDB();
+        // =====================================
 
         function ensureStocksForWarehouses() {
             db.products = db.products.map(p => ({

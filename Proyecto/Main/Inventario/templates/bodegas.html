@@ -106,10 +106,11 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // -------- Autenticación (Flask) --------
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
         function requireSession() {
             if (!IS_AUTH) {
-                window.location.href = "{{ url_for('login') }}"; // <-- corregido
+                window.location.href = "{{ url_for('login') }}";
                 return null;
             }
             return true;
@@ -119,45 +120,29 @@
             window.location.href = "{{ url_for('logout') }}";
         }
 
-        const STORAGE_KEY = "inventrackDB";
-        let db = loadDB();
+        // -------- Desactivar local/session storage (limpieza) --------
+        (function () {
+            try { localStorage.removeItem('inventrackDB'); } catch { }
+            try { sessionStorage.removeItem('inventrackUser'); } catch { }
+        })();
 
-        function loadDB() {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) {
-                const seed = {
-                    products: [],
-                    warehouses: [],
-                    movements: [],
-                    users: [{ id: "usr1", username: "admin@local", password: "123456", role: "admin" }],
-                };
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-                return seed;
-            }
-            try { return JSON.parse(raw); }
-            catch {
-                const reset = { products: [], warehouses: [], movements: [], users: [] };
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(reset));
-                return reset;
-            }
-        }
+        // -------- Base vacía SIN localStorage --------
+        // (no se lee ni escribe en localStorage; datos vacíos temporales)
+        const db = {
+            products: [],
+            warehouses: [],
+            movements: []
+        };
 
-        function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
-
-        function can(role) {
-            try {
-                const u = JSON.parse(sessionStorage.getItem("inventrackUser")) || null;
-                return !!u && (u.role === "admin" || u.role === role);
-            } catch { return false; }
+        // Roles del front deshabilitados (no dependemos de sessionStorage)
+        function can(/*role*/) {
+            // Mientras esté desactivado el almacenamiento local y los roles en front,
+            // devolvemos false para no permitir acciones de edición desde el cliente.
+            return false;
         }
 
         function ensureStocksForWarehouses() {
-            db.products = db.products.map(p => {
-                const stocks = { ...(p.stocks || {}) };
-                db.warehouses.forEach(w => { if (typeof stocks[w.id] !== "number") stocks[w.id] = 0; });
-                return { ...p, stocks };
-            });
-            saveDB();
+            // Con db vacía, no hay nada que normalizar; dejamos no-op.
         }
 
         function initWarehouses() {
@@ -179,11 +164,12 @@
                 return;
             }
 
+            // (No se mostrará porque can() devuelve false)
             container.innerHTML = `
-        <div class="d-flex gap-2">
-          <input type="text" id="warehouseName" class="form-control" placeholder="Nombre de bodega">
-          <button class="btn btn-primary" onclick="addWarehouse()">Agregar</button>
-        </div>`;
+                <div class="d-flex gap-2">
+                  <input type="text" id="warehouseName" class="form-control" placeholder="Nombre de bodega">
+                  <button class="btn btn-primary" onclick="addWarehouse()">Agregar</button>
+                </div>`;
         }
 
         function renderWarehouses() {
@@ -191,7 +177,7 @@
             const totalEl = document.getElementById("totalWarehousesCount");
             container.innerHTML = "";
 
-            const total = db.warehouses?.length || 0;
+            const total = db.warehouses.length;
             if (totalEl) totalEl.textContent = total;
 
             if (!total) {
@@ -206,13 +192,13 @@
                 const item = document.createElement("div");
                 item.className = "list-group-item d-flex justify-content-between align-items-center";
                 item.innerHTML = `
-          <div>
-            <strong>${w.name}</strong>
-            <div class="small text-muted">SKUs: ${totalSKUs} &middot; Stock total: ${totalEnBodega}</div>
-          </div>
-          <div>
-            ${can("admin") ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteWarehouse('${w.id}')">Eliminar</button>` : ""}
-          </div>`;
+                    <div>
+                      <strong>${w.name}</strong>
+                      <div class="small text-muted">SKUs: ${totalSKUs} &middot; Stock total: ${totalEnBodega}</div>
+                    </div>
+                    <div>
+                      ${can("admin") ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteWarehouse('${w.id}')">Eliminar</button>` : ""}
+                    </div>`;
                 container.appendChild(item);
             });
         }
@@ -259,7 +245,6 @@
             }
 
             const wid = sel.value;
-            ensureStocksForWarehouses();
 
             const filtered = db.products.filter(p =>
                 (p.name || "").toLowerCase().includes(filter) ||
@@ -276,33 +261,33 @@
                 const totalAll = Object.values(p.stocks || {}).reduce((a, b) => a + Number(b || 0), 0);
                 const dis = can("admin") ? "" : "disabled";
                 return `
-          <tr>
-            <td>${p.name || "(sin nombre)"}</td>
-            <td>${p.sku || "-"}</td>
-            <td class="text-end">
-              <input type="number" min="0" step="1"
-                     class="form-control form-control-sm text-end"
-                     data-pid="${p.id}" value="${current}" ${dis}
-                     onkeydown="if(event.key==='e'||event.key==='-')event.preventDefault();">
-            </td>
-            <td class="text-end">${totalAll}</td>
-          </tr>`;
+                  <tr>
+                    <td>${p.name || "(sin nombre)"}</td>
+                    <td>${p.sku || "-"}</td>
+                    <td class="text-end">
+                      <input type="number" min="0" step="1"
+                             class="form-control form-control-sm text-end"
+                             data-pid="${p.id}" value="${current}" ${dis}
+                             onkeydown="if(event.key==='e'||event.key==='-')event.preventDefault();">
+                    </td>
+                    <td class="text-end">${totalAll}</td>
+                  </tr>`;
             }).join("");
 
             container.innerHTML = `
-        <div class="scroll-table">
-          <table class="table table-sm align-middle mb-0">
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>SKU</th>
-                <th class="text-end">Stock en bodega</th>
-                <th class="text-end">Total</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>`;
+                <div class="scroll-table">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th>SKU</th>
+                        <th class="text-end">Stock en bodega</th>
+                        <th class="text-end">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                  </table>
+                </div>`;
         }
 
         function toggleAssignEditability() {
@@ -310,64 +295,20 @@
             if (btn) btn.disabled = !can("admin");
         }
 
+        // ---- Acciones (no operan porque no hay almacenamiento local) ----
         function saveStocksForWarehouse() {
             if (!can("admin")) { alert("No tienes permiso para editar stocks."); return; }
-            const sel = document.getElementById("selWarehouse");
-            if (!sel || !sel.value) { alert("Debes seleccionar una bodega."); return; }
-            const wid = sel.value;
-
-            const inputs = document.querySelectorAll('input[data-pid]');
-            let changes = 0;
-            inputs.forEach(inp => {
-                const pid = inp.getAttribute('data-pid');
-                const val = Math.max(0, parseInt(inp.value || "0", 10) || 0);
-                const idx = db.products.findIndex(p => p.id === pid);
-                if (idx >= 0) {
-                    if (!db.products[idx].stocks) db.products[idx].stocks = {};
-                    const prev = Number(db.products[idx].stocks[wid] || 0);
-                    if (prev !== val) { db.products[idx].stocks[wid] = val; changes++; }
-                }
-            });
-
-            saveDB();
-            renderWarehouses();
-            renderProductStocksTable();
-            alert(changes ? "Stock actualizado correctamente." : "No hubo cambios.");
+            alert("Edición deshabilitada temporalmente mientras se migra a roles del servidor.");
         }
 
         function addWarehouse() {
             if (!can("admin")) return alert("No tienes permiso para agregar bodegas");
-            const nameInput = document.getElementById("warehouseName");
-            const name = (nameInput?.value || "").trim();
-            if (!name) return alert("Ingresa el nombre de la bodega");
-
-            const id = "w" + Date.now();
-            const newWarehouse = { id, name };
-
-            db.products = db.products.map(p => ({ ...p, stocks: { ...(p.stocks || {}), [id]: 0 } }));
-            db.warehouses.push(newWarehouse);
-
-            saveDB();
-            if (nameInput) nameInput.value = "";
-            renderWarehouses();
-            renderWarehouseSelector();
-            renderProductStocksTable();
+            alert("Creación de bodegas deshabilitada temporalmente mientras se migra a roles del servidor.");
         }
 
         function deleteWarehouse(id) {
             if (!can("admin")) return alert("No tienes permiso para eliminar bodegas");
-            if (!confirm("¿Eliminar bodega? (Se perderán existencias asociadas)")) return;
-
-            db.warehouses = db.warehouses.filter(w => w.id !== id);
-            db.products = db.products.map(p => {
-                const { [id]: _, ...rest } = (p.stocks || {});
-                return { ...p, stocks: rest };
-            });
-
-            saveDB();
-            renderWarehouses();
-            renderWarehouseSelector();
-            renderProductStocksTable();
+            alert("Eliminación deshabilitada temporalmente mientras se migra a roles del servidor.");
         }
     </script>
 </body>

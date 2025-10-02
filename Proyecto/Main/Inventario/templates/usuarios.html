@@ -128,41 +128,40 @@
             try { sessionStorage.removeItem('inventrackUser'); } catch { }
             window.location.href = "{{ url_for('logout') }}";
         }
-        const LS_KEY = 'inventrackDB';
+
+        // =======================
+        //  🔌 DESACTIVAR localStorage
+        // =======================
+        // Mantenemos la misma API (loadDB/saveDB) pero:
+        // - loadDB usa memoria en esta pestaña (no localStorage)
+        // - saveDB no hace nada
+        let __DB_MEM = {
+            products: [],
+            warehouses: [],
+            movements: [],
+            users: []
+        };
 
         function loadDB() {
-            const raw = localStorage.getItem(LS_KEY);
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (!Array.isArray(parsed.users)) parsed.users = [];
-                    if (!parsed.users.some(u => u.role === 'admin')) {
-                        parsed.users.push({
-                            id: 'usr_' + Date.now(),
-                            name: 'Administrador',
-                            username: 'admin@local',
-                            password: '123456',
-                            role: 'admin'
-                        });
-                    }
-                    return parsed;
-                } catch { }
-            }
-            const seed = {
-                products: [], warehouses: [], movements: [],
-                users: [{
+            // Mantiene el "seed" de admin en memoria si no existe
+            if (!Array.isArray(__DB_MEM.users)) __DB_MEM.users = [];
+            if (!__DB_MEM.users.some(u => u.role === 'admin')) {
+                __DB_MEM.users.push({
                     id: 'usr_' + Date.now(),
                     name: 'Administrador',
                     username: 'admin@local',
                     password: '123456',
                     role: 'admin'
-                }]
-            };
-            localStorage.setItem(LS_KEY, JSON.stringify(seed));
-            return seed;
+                });
+            }
+            return __DB_MEM;
         }
 
-        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+        function saveDB() {
+            // No-op: sin persistencia
+        }
+        // =======================
+
         function currentUser() { try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; } }
         function isAdmin() { const me = currentUser(); return !!me && me.role === 'admin'; }
 
@@ -222,7 +221,7 @@
             if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) return alert("Ya existe un usuario con ese nombre");
 
             db.users.push({ id: 'usr_' + Date.now(), name, username, password, role });
-            saveDB();
+            saveDB(); // no-op
 
             document.getElementById('userName').value = '';
             document.getElementById('userUsername').value = '';
@@ -246,7 +245,7 @@
             if (!confirm(`¿Eliminar usuario "${user.username}"?`)) return;
 
             db.users = db.users.filter(u => u.id !== id);
-            saveDB();
+            saveDB(); // no-op
             renderUsers();
             attachStickyShadow();
         }

@@ -1,103 +1,101 @@
 // ------------------------
-// auth.js
+// auth.js (limpio, sin localStorage / sessionStorage)
 // ------------------------
 
-// Elementos del formulario
-let signUpBtn = document.getElementById("signUp");
-let signInBtn = document.getElementById("signIn");
-let nameInput = document.getElementById("nameInput");
-let title = document.getElementById("title");
+// Botones/elementos (pueden no existir en algunas vistas)
+const signUpBtn  = document.getElementById("signUp");
+const signInBtn  = document.getElementById("signIn");
+const nameInput  = document.getElementById("nameInput");
+const titleEl    = document.getElementById("title");
 
-// Alternar Login/Registro
-signInBtn.onclick = function () {
-  nameInput.style.maxHeight = "0";
-  title.innerHTML = "Login";
-  signUpBtn.classList.add("disable");
-  signInBtn.classList.remove("disable");
-};
+// Alternar Login/Registro (solo UI)
+if (signInBtn) {
+  signInBtn.onclick = function () {
+    if (nameInput) nameInput.style.maxHeight = "0";
+    if (titleEl)   titleEl.innerHTML = "Login";
+    if (signUpBtn) signUpBtn.classList.add("disable");
+    signInBtn.classList.remove("disable");
+  };
+}
 
-signUpBtn.onclick = function () {
-  nameInput.style.maxHeight = "60px";
-  title.innerHTML = "Registro";
-  signUpBtn.classList.remove("disable");
-  signInBtn.classList.add("disable");
-};
-
-// ------------------------
-// Base de datos simulada con localStorage
-// ------------------------
-let db = JSON.parse(localStorage.getItem("inventrackDB")) || {
-  products: [],
-  warehouses: [],
-  movements: [],
-  users: [{ id: "usr1", username: "admin", password: "123456", role: "admin" }],
-};
-
-function saveDB() {
-  localStorage.setItem("inventrackDB", JSON.stringify(db));
+if (signUpBtn) {
+  signUpBtn.onclick = function () {
+    if (nameInput) nameInput.style.maxHeight = "60px";
+    if (titleEl)   titleEl.innerHTML = "Registro";
+    signUpBtn.classList.remove("disable");
+    if (signInBtn) signInBtn.classList.add("disable");
+  };
 }
 
 // ------------------------
-// Manejo de sesión
+// Autenticación ahora la maneja el BACKEND (Flask)
 // ------------------------
-function login(username, password) {
-  const user = db.users.find(
-    (u) => u.username === username && u.password === password
-  );
-  if (!user) return alert("Usuario o contraseña incorrectos ❌");
-  sessionStorage.setItem("inventrackUser", JSON.stringify(user));
-  window.location.href = "Pages/dashboard.html";
+
+// Rutas inyectadas por Flask (fallbacks por si no están)
+const URLS = window.URLS || { login: "/login", logout: "/logout" };
+
+// Estas funciones quedan como “no-op” amigables para no romper HTMLs antiguos
+function login(/*username, password*/) {
+  alert("La autenticación ahora la maneja el servidor.\nUsa el formulario para iniciar sesión.");
+  // No hacemos nada aquí. El <form> hace POST a /login
 }
 
 function logout() {
-  sessionStorage.removeItem("inventrackUser");
-  window.location.href = "../index.html";
+  // Redirige al backend para cerrar sesión real
+  window.location.href = URLS.logout;
 }
 
 function checkSession() {
-  const user = JSON.parse(sessionStorage.getItem("inventrackUser"));
-  if (!user) window.location.href = "../index.html";
-  return user;
+  // Si inyectas window.IS_AUTH desde Flask, puedes usarlo aquí
+  if (typeof window.IS_AUTH !== "undefined" && !window.IS_AUTH) {
+    window.location.href = URLS.login;
+    return false;
+  }
+  return true;
 }
 
 // ------------------------
-// Registro/Login desde formulario
+// Formulario (NO interceptamos el submit)
 // ------------------------
+//
+// Antes este archivo hacía:
+//  - Validaciones, guardaba en localStorage y setear sessionStorage.
+//  - Luego redirigía a Pages/dashboard.html
+//
+// Ahora dejamos que el <form> haga POST normal a Flask.
+// Si quieres validaciones visuales mínimas (opcionales), puedes ponerlas,
+// pero sin impedir el submit si todo está ok.
+
 const form = document.getElementById("formulario");
 
-form.addEventListener("submit", function (e) {
-  e.preventDefault();
-  const nombre = document.getElementById("nombre").value.trim();
-  const correo = document.getElementById("correo").value.trim();
-  const password = document.getElementById("password").value.trim();
+if (form) {
+  form.addEventListener("submit", function (e) {
+    // Validaciones de cortesía (opcionales). Si están mal, sí bloqueamos el submit.
+    const isRegister = titleEl && titleEl.innerHTML.trim().toLowerCase() === "registro";
 
-  const errores = [];
-  if (title.innerHTML === "Registro" && nombre === "")
-    errores.push("El nombre es obligatorio.");
-  const regexCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!regexCorreo.test(correo)) errores.push("El correo no es válido.");
-  if (password.length < 6)
-    errores.push("La contraseña debe tener al menos 6 caracteres.");
+    const nombre   = document.getElementById("nombre");
+    const correo   = document.getElementById("correo");
+    const password = document.getElementById("password");
 
-  if (errores.length > 0) {
-    alert(errores.join("\n"));
-    return;
-  }
+    const errores = [];
+    if (isRegister && nombre && nombre.value.trim() === "") {
+      errores.push("El nombre es obligatorio.");
+    }
+    if (correo) {
+      const v = (correo.value || "").trim();
+      const regexCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!regexCorreo.test(v)) errores.push("El correo no es válido.");
+    }
+    if (password) {
+      const p = (password.value || "").trim();
+      if (p.length < 6) errores.push("La contraseña debe tener al menos 6 caracteres.");
+    }
 
-  if (title.innerHTML === "Registro") {
-    if (db.users.some((u) => u.username === correo)) {
-      alert("El usuario ya existe ❌");
+    if (errores.length > 0) {
+      e.preventDefault();
+      alert(errores.join("\n"));
       return;
     }
-    const id = "usr" + Date.now();
-    const nuevoUsuario = { id, username: correo, password, role: "visor" };
-    db.users.push(nuevoUsuario);
-    saveDB();
 
-    sessionStorage.setItem("inventrackUser", JSON.stringify(nuevoUsuario));
-    alert("Registro exitoso ✅");
-    window.location.href = "Pages/dashboard.html";
-  } else {
-    login(correo, password);
-  }
-});
+  });
+}

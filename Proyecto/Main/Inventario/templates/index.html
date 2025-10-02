@@ -73,6 +73,14 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Limpieza de datos locales -->
+    <script>
+        (function () {
+            try { localStorage.removeItem('inventrackDB'); } catch { }
+            try { sessionStorage.removeItem('inventrackUser'); } catch { }
+        })();
+    </script>
 </body>
 
 </html>

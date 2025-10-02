@@ -168,15 +168,10 @@
             window.location.href = "{{ url_for('logout') }}";
         }
 
-        const LS_KEY = 'inventrackDB';
-        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+        // 🔴 LocalStorage desactivado
+        function saveDB() { }
         function loadDB() {
-            try {
-                const parsed = JSON.parse(localStorage.getItem(LS_KEY));
-                return parsed || { products: [], warehouses: [], movements: [], users: [] };
-            } catch {
-                return { products: [], warehouses: [], movements: [], users: [] };
-            }
+            return { products: [], warehouses: [], movements: [], users: [] };
         }
 
         function currentUser() {

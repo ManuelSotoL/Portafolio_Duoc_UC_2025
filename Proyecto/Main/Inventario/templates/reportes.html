@@ -121,6 +121,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // --- Auth ---
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
         function requireSession() {
             if (!IS_AUTH) {
@@ -134,30 +135,15 @@
             window.location.href = "{{ url_for('logout') }}";
         }
 
+        // --- DESACTIVAR localStorage: no leer/ni escribir ---
         const LS_KEY = 'inventrackDB';
-
         function loadDB() {
-            const raw = localStorage.getItem(LS_KEY);
-            if (raw) { try { return JSON.parse(raw); } catch { } }
-            const seed = {
-                products: [
-                    { id: 'p1', sku: 'SKU001', name: 'Producto 1', minStock: 5, stocks: {} },
-                    { id: 'p2', sku: 'SKU002', name: 'Producto 2', minStock: 2, stocks: {} }
-                ],
-                warehouses: [
-                    { id: 'w1', name: 'Bodega A' },
-                    { id: 'w2', name: 'Bodega B' }
-                ],
-                movements: []
-            };
-            seed.products = seed.products.map(p => ({
-                ...p,
-                stocks: seed.warehouses.reduce((acc, w) => (acc[w.id] = acc[w.id] ?? 0, acc), p.stocks || {})
-            }));
-            localStorage.setItem(LS_KEY, JSON.stringify(seed));
-            return seed;
+            // Devolvemos estructuras vacías (sin tocar localStorage)
+            return { products: [], warehouses: [], movements: [] };
         }
-        function saveDB() { localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+        function saveDB() {
+            // No-op mientras localStorage está desactivado
+        }
 
         function ensureStocksForWarehouses() {
             db.products = db.products.map(p => ({
