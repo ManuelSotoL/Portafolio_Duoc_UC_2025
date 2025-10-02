@@ -63,8 +63,8 @@
         <h2 class="section-title text-center">Gestión de Usuarios</h2>
 
         <div class="row g-4 w-100">
-            <div class="col-md-4">
-                <div class="card shadow-sm" id="userFormCard">
+            <div class="col-md-4" id="userFormCard">
+                <div class="card shadow-sm">
                     <div class="card-header">Nuevo Usuario</div>
                     <div class="card-body">
                         <div class="row g-3">
@@ -98,15 +98,16 @@
                     </div>
                 </div>
             </div>
-
             <div class="col-md-8">
                 <div class="card shadow-sm card-scroll" id="usersCard">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>Usuarios Registrados</span>
-                        <span class="badge bg-secondary" id="usersCount">0</span>
+                        <div>
+                            Lista de Usuarios (<span id="usersCount">0</span>)
+                        </div>
                     </div>
                     <div class="card-body">
-                        <div class="scroll-body" id="listUsers"></div>
+                        <div id="listUsers" class="list-group">
+                            </div>
                     </div>
                 </div>
             </div>
@@ -114,16 +115,19 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-
     <script>
-        const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
-        function requireSession() {
-            if (!IS_AUTH) {
-                window.location.href = "{{ url_for('login') }}";
-                return false;
+        let allUsers = [];
+        let currentUserRole = 'visor';
+        const userFormCard = document.getElementById('userFormCard');
+
+        async function initUsers() {
+            await fetchUserRole();
+            if (currentUserRole !== 'admin') {
+                userFormCard.style.display = 'none';
             }
-            return true;
+            await fetchUsers();
         }
+<<<<<<< HEAD
         function logout() {
             try { sessionStorage.removeItem('inventrackUser'); } catch { }
             window.location.href = "{{ url_for('logout') }}";
@@ -172,72 +176,82 @@
             setupUserFormPermissions();
             renderUsers();
             attachStickyShadow();
+=======
+
+        async function fetchUserRole() {
+            try {
+                const response = await fetch('/api/user_role');
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUserRole = data.role;
+                }
+            } catch (error) {
+                console.error('Error fetching user role:', error);
+            }
         }
 
-        function attachStickyShadow() {
-            const card = document.getElementById('usersCard');
-            if (!card) return;
-            const scroller = card.querySelector('.scroll-body');
-            if (!scroller) return;
-
-            const toggleShadow = () => {
-                if (scroller.scrollTop > 0) card.classList.add('scrolled');
-                else card.classList.remove('scrolled');
-            };
-            scroller.addEventListener('scroll', toggleShadow);
-            toggleShadow();
+        async function fetchUsers() {
+            try {
+                const response = await fetch('/api/users');
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert('Error al cargar usuarios: ' + (error.error || 'Desconocido'));
+                    return;
+                }
+                allUsers = await response.json();
+                renderUsers();
+            } catch (error) {
+                console.error('Error fetching users:', error);
+                alert('Error de conexión con el servidor.');
+            }
+>>>>>>> 25694e9dfd2a6fdf385c70be5e427e4a11f07930
         }
 
-        function disableUserForm() {
-            const card = document.getElementById('userFormCard');
-            if (!card) return;
-            const inputs = card.querySelectorAll('input, select, button');
-            inputs.forEach(el => {
-                el.disabled = true;
-                el.classList.add('disabled');
-            });
-            const body = card.querySelector('.card-body');
-            const tip = document.createElement('div');
-            tip.className = 'text-muted mt-2';
-            tip.textContent = 'No tienes permisos para registrar usuarios.';
-            body.appendChild(tip);
-        }
-
-        function setupUserFormPermissions() {
-            if (!isAdmin()) disableUserForm();
-        }
-
-        function addUser() {
-            if (!isAdmin()) return alert('Solo un administrador puede crear usuarios');
-
+        async function addUser() {
             const name = document.getElementById('userName').value.trim();
             const username = document.getElementById('userUsername').value.trim();
-            const password = document.getElementById('userPassword').value.trim();
+            const password = document.getElementById('userPassword').value;
             const role = document.getElementById('userRole').value;
 
-            if (!name || !username || !password) return alert("Complete todos los campos");
-            if (!username.includes('@')) return alert('El usuario debe incluir "@" (ej: correo@dominio)');
-            if (password.length < 4) return alert("La contraseña debe tener al menos 4 caracteres");
-            if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) return alert("Ya existe un usuario con ese nombre");
+            if (!name || !username || !password || !role) {
+                return alert('Por favor, completa todos los campos.');
+            }
 
+<<<<<<< HEAD
             db.users.push({ id: 'usr_' + Date.now(), name, username, password, role });
             saveDB(); // no-op
+=======
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, username, password, role })
+                });
+>>>>>>> 25694e9dfd2a6fdf385c70be5e427e4a11f07930
 
-            document.getElementById('userName').value = '';
-            document.getElementById('userUsername').value = '';
-            document.getElementById('userPassword').value = '';
-            document.getElementById('userRole').value = 'operador';
+                const result = await response.json();
+                if (!response.ok) {
+                    return alert('Error: ' + (result.error || 'No se pudo registrar el usuario.'));
+                }
 
-            renderUsers();
-            attachStickyShadow();
+                alert(result.message);
+                document.getElementById('userName').value = '';
+                document.getElementById('userUsername').value = '';
+                document.getElementById('userPassword').value = '';
+                document.getElementById('userRole').value = 'operador';
+                fetchUsers();
+            } catch (error) {
+                console.error('Error adding user:', error);
+                alert('Error de conexión con el servidor.');
+            }
         }
 
-        function deleteUser(id) {
-            if (!isAdmin()) return alert('Solo un administrador puede eliminar usuarios');
-            const me = currentUser();
-            const user = db.users.find(u => u.id === id);
-            if (!user) return;
+        async function changeRole(id, newRole) {
+            if (!confirm(`¿Cambiar el rol del usuario a ${newRole}?`)) {
+                return;
+            }
 
+<<<<<<< HEAD
             const adminCount = db.users.filter(u => u.role === 'admin').length;
             if (user.role === 'admin' && adminCount <= 1) return alert('Debe existir al menos un administrador');
             if (me && me.id === id) return alert('No puedes eliminar tu propio usuario');
@@ -248,24 +262,44 @@
             saveDB(); // no-op
             renderUsers();
             attachStickyShadow();
+=======
+            try {
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    return alert('Error: ' + (result.error || 'No se pudo actualizar el rol.'));
+                }
+                alert(result.message);
+                fetchUsers();
+            } catch (error) {
+                console.error('Error changing role:', error);
+                alert('Error de conexión con el servidor.');
+            }
+>>>>>>> 25694e9dfd2a6fdf385c70be5e427e4a11f07930
         }
 
-        function togglePassword(id) {
-            if (!isAdmin()) return;
-            const span = document.getElementById('pwd-' + id);
-            const btn = document.getElementById('btn-eye-' + id);
-            if (!span || !btn) return;
+        async function deleteUser(id) {
+            if (!confirm('¿Estás seguro de eliminar este usuario?')) {
+                return;
+            }
 
-            const visible = span.getAttribute('data-visible') === '1';
-            if (visible) {
-                span.textContent = '••••••';
-                span.setAttribute('data-visible', '0');
-                btn.textContent = '👁 Ver';
-            } else {
-                const real = span.getAttribute('data-pwd') || '';
-                span.textContent = real;
-                span.setAttribute('data-visible', '1');
-                btn.textContent = '🙈 Ocultar';
+            try {
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    return alert('Error: ' + (result.error || 'No se pudo eliminar el usuario.'));
+                }
+                alert(result.message);
+                fetchUsers();
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Error de conexión con el servidor.');
             }
         }
 
@@ -274,32 +308,43 @@
             const count = document.getElementById('usersCount');
             container.innerHTML = '';
 
-            if (!db.users || db.users.length === 0) {
+            if (!allUsers || allUsers.length === 0) {
                 container.innerHTML = '<p class="text-muted">No hay usuarios registrados.</p>';
                 count.textContent = '0';
                 return;
             }
 
-            count.textContent = String(db.users.length);
+            count.textContent = String(allUsers.length);
+            const currentUser = '{{ session.get("usuario") }}';
+            const userIsAdmin = currentUserRole === 'admin';
 
-            db.users.forEach(u => {
+            allUsers.forEach(u => {
                 const row = document.createElement('div');
                 row.className = 'user-row p-3 rounded border d-flex justify-content-between align-items-center mb-2';
-                const me = currentUser();
-                const isMe = (me && me.id === u.id);
+                const isMe = (currentUser === u.usuario);
+
+                let roleSelect = `<span class="badge bg-secondary text-uppercase">${u.role}</span>`;
+                if (userIsAdmin && !isMe) {
+                    roleSelect = `
+                        <select class="form-select form-select-sm" 
+                            onchange="changeRole('${u._id}', this.value)">
+                            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrador</option>
+                            <option value="operador" ${u.role === 'operador' ? 'selected' : ''}>Operador</option>
+                            <option value="visor" ${u.role === 'visor' ? 'selected' : ''}>Visor</option>
+                        </select>
+                    `;
+                }
 
                 row.innerHTML = `
-          <div class="text-start">
-            <div class="fw-bold">${u.username}</div>
-            <div>${u.name || ''}</div>
-            <span class="badge bg-secondary text-uppercase mt-1">${u.role}</span>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            <span id="pwd-${u.id}" class="badge bg-dark" data-pwd="${u.password}" data-visible="0">••••••</span>
-            ${isAdmin() ? `<button id="btn-eye-${u.id}" class="btn btn-sm btn-outline-primary" onclick="togglePassword('${u.id}')">👁 Ver</button>` : ''}
-            ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger" ${isMe ? 'disabled' : ''} onclick="deleteUser('${u.id}')">Eliminar</button>` : ''}
-          </div>
-        `;
+                    <div class="text-start">
+                        <div class="fw-bold">${u.usuario}</div>
+                        <div class="mt-1">${roleSelect}</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        ${isMe ? `<span class="text-primary me-2">Tú</span>` : ''}
+                        ${userIsAdmin && !isMe ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u._id}')">Eliminar</button>` : ''}
+                    </div>
+                `;
                 container.appendChild(row);
             });
         }
