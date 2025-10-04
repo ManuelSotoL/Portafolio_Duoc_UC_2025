@@ -351,3 +351,72 @@ ul {
 .navbar .nav-link {
   font-weight: bold !important; /* letras de navbar en negrita */
 }
+
+
+/* Personalización de alertas de stock bajo */
+#lowStockContainer .alert {
+  background-color: rgba(18, 39, 231, 0.774) !important; /* verde agua suave */
+  border: 1px solid #04bd7d !important;
+  color: #ffffff !important;
+  border-radius: 12px;
+}
+
+#lowStockContainer .alert strong {
+  color: #f70606c4 !important; /* resaltar nombre del producto en verde agua */
+}
+
+#lowStockContainer .alert small {
+  color: #e0e0e0 !important; /* gris claro para el detalle */
+}
+
+
+/* ===== Stats cards iguales al look de las demás ===== */
+.stats-card {
+  background-color: var(--bg-card) !important;       /* mismo fondo que las otras */
+  color: var(--text-light) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);       /* borde sutil como las de abajo */
+  border-radius: 20px;                                /* mismo radio */
+  box-shadow: var(--shadow-lg);                       /* misma sombra */
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.stats-card h5 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: #ffffff;
+}
+
+.stats-card .big-number {
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+
+.stats-card small {
+  color: rgba(255, 255, 255, 0.75) !important;        /* mismo tono que usas en otras */
+}
+
+/* detalle de acento para coherencia con la línea verde de títulos */
+.stats-card::after {
+  content: "";
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+  margin: 6px auto 0;
+  opacity: .85;
+}
+
+/* feedback sutil al pasar el mouse (igual que otras) */
+.stats-card:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+  transition: all .18s ease;
+}

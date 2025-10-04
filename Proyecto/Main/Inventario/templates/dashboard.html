@@ -63,15 +63,16 @@
         <h2 class="section-title text-center">Panel de Control</h2>
 
         <div class="row g-4 mb-4 stats-grid" id="statsContainer">
-            </div>
+        </div>
 
         <div class="row w-100">
             <div class="col-12">
                 <div class="card card-scroll">
-                    <div class="card-header"><strong><i class="fas fa-exclamation-triangle text-warning"></i> Alertas de Stock Bajo</strong></div>
+                    <div class="card-header"><strong><i class="fas fa-exclamation-triangle text-warning"></i> Alertas de
+                            Stock Bajo</strong></div>
                     <div class="card-body">
                         <div class="scroll-body" id="lowStockContainer">
-                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -82,7 +83,7 @@
 
     <script>
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
-        
+
         function requireSession() {
             if (!IS_AUTH) {
                 window.location.href = "{{ url_for('login') }}";
@@ -93,7 +94,7 @@
 
         async function initDashboard() {
             if (!requireSession()) return;
-            
+
             try {
                 // Realizar una única llamada a la API para obtener todas las estadísticas
                 const response = await fetch('/api/dashboard/stats');
@@ -125,11 +126,11 @@
                 const div = document.createElement('div');
                 div.className = 'col-12 col-sm-6 col-lg-4 d-flex';
                 div.innerHTML = `
-                  <div class="card p-3 text-center shadow-sm h-100 w-100">
-                    <h5>${s.title}</h5>
-                    <div class="display-5 fw-bold">${s.value}</div>
-                    <small class="text-muted">${s.footer}</small>
-                  </div>`;
+                <div class="card stats-card h-100 w-100">
+                <h5>${s.title}</h5>
+                <div class="big-number">${s.value}</div>
+                <small>${s.footer}</small>
+</div>`;
                 container.appendChild(div);
             });
         }
@@ -142,7 +143,7 @@
                 container.innerHTML = '<div class="text-center text-muted p-3">No hay alertas de stock. ¡Todo en orden!</div>';
                 return;
             }
-            
+
             alerts.forEach(alert => {
                 const div = document.createElement('div');
                 div.className = 'alert alert-warning d-flex justify-content-between align-items-center';
