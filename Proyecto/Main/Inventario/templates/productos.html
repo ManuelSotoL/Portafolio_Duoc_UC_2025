@@ -94,11 +94,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">SKU</label>
-                        <div class="input-group">
-                            <span class="input-group-text">SKU</span>
-                            <input type="text" id="newSKUNum" class="form-control" placeholder="Ej: 001">
-                        </div>
-                        <div class="form-text">Escribe solo el número. Se guardará como SKU+Número (ej: SKU001).</div>
+                        <input type="text" id="newSKU" class="form-control" placeholder="Ej: SKU001">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Nombre</label>
@@ -106,8 +102,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Stock mínimo</label>
-                        <input type="number" id="newMinStock" class="form-control" value="0" min="0" step="1"
-                            onkeydown="if(['e','E','-','+','.'].includes(event.key)) event.preventDefault();">
+                        <input type="number" id="newMinStock" class="form-control" value="0" min="0" step="1">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -129,10 +124,7 @@
                     <input type="hidden" id="editId">
                     <div class="mb-3">
                         <label class="form-label">SKU</label>
-                        <div class="input-group">
-                            <span class="input-group-text">SKU</span>
-                            <input type="text" id="editSKUNum" class="form-control" placeholder="Ej: 001">
-                        </div>
+                        <input type="text" id="editSKU" class="form-control" placeholder="Ej: SKU001">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Nombre</label>
@@ -140,8 +132,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Stock mínimo</label>
-                        <input type="number" id="editMinStock" class="form-control" value="0" min="0" step="1"
-                            onkeydown="if(['e','E','-','+','.'].includes(event.key)) event.preventDefault();">
+                        <input type="number" id="editMinStock" class="form-control" value="0" min="0" step="1">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -155,6 +146,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        let allProducts = [];
+        let currentUserRole = 'visor';
+
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
         function requireSession() {
             if (!IS_AUTH) {
@@ -163,51 +157,188 @@
             }
             return true;
         }
-        function logout() {
-            try { sessionStorage.removeItem('inventrackUser'); } catch { }
-            window.location.href = "{{ url_for('logout') }}";
-        }
-
-        // 🔴 LocalStorage desactivado
-        function saveDB() { }
-        function loadDB() {
-            return { products: [], warehouses: [], movements: [], users: [] };
-        }
-
-        function currentUser() {
-            try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; }
-        }
+        
+        // Función para verificar permisos de edición
         function canEditProducts() {
-            const u = currentUser();
-            return u && (u.role === 'admin' || u.role === 'operador');
+            return ['admin', 'operador'].includes(currentUserRole);
         }
 
-        let db = loadDB();
-
-        function ensureStocksForWarehouses() {
-            db.products = db.products.map(p => ({
-                ...p,
-                stocks: db.warehouses.reduce((acc, w) => {
-                    acc[w.id] = typeof acc[w.id] === 'number' ? acc[w.id] : 0;
-                    return acc;
-                }, { ...(p.stocks || {}) })
-            }));
-        }
-
-        function initProducts() {
+        async function initProducts() {
             if (!requireSession()) return;
-            ensureStocksForWarehouses();
-            saveDB();
-            if (!canEditProducts()) {
-                const btn = document.getElementById('btnNuevoProducto');
-                if (btn) btn.style.display = 'none';
+            
+            try {
+                // Obtener rol del usuario
+                const roleResponse = await fetch('/api/user_role');
+                const roleData = await roleResponse.json();
+                currentUserRole = roleData.role || 'visor';
+
+                // Ocultar botón de "Nuevo" si no tiene permisos
+                if (!canEditProducts()) {
+                    document.getElementById('btnNuevoProducto').style.display = 'none';
+                }
+
+                // Cargar productos y renderizar
+                const response = await fetch('/api/productos');
+                allProducts = await response.json();
+                renderProducts();
+
+                document.getElementById('searchInput').addEventListener('input', renderProducts);
+                attachStickyShadow('productsCard');
+
+            } catch (error) {
+                console.error("Error al inicializar productos:", error);
+                alert("No se pudo cargar la información de los productos.");
             }
-            renderProducts();
-            const si = document.getElementById('searchInput');
-            if (si) si.addEventListener('input', renderProducts);
-            attachStickyShadow('productsCard');
+        }
+        
+        function renderProducts() {
+            const container = document.getElementById('productsContainer');
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            container.innerHTML = '';
+
+            const filtered = allProducts.filter(p => 
+                (p.sku.toLowerCase().includes(query) || p.name.toLowerCase().includes(query))
+            );
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="col-12"><div class="card p-3 text-center shadow-sm text-muted">No hay productos para mostrar.</div></div>`;
+                return;
+            }
+
+            filtered.forEach(p => {
+                const warehousesHTML = (p.bodegas_info || []).map(b => `
+                    <div class="d-flex justify-content-between border p-2 rounded mb-1">
+                        <div>${b.name || 'Bodega desconocida'}</div>
+                        <div>${b.stock}</div>
+                    </div>`).join('');
+
+                const col = document.createElement('div');
+                col.className = 'col-lg-4 col-md-6 col-12 product-col';
+                col.innerHTML = `
+                    <div class="card h-100 shadow-sm text-start">
+                        <div class="card-body">
+                            <h5 class="card-title">${p.name} <small class="opacity-75">(${p.sku})</small></h5>
+                            <p class="card-text">Stock mínimo: ${p.minStock || 0}</p>
+                            <div class="mb-2">${warehousesHTML || '<small class="text-muted">Sin stock en bodegas.</small>'}</div>
+                            <div class="d-flex gap-2">
+                                ${canEditProducts() ? `
+                                    <button class="btn btn-success btn-sm" onclick="openEdit('${p.id}')">Editar</button>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="deleteProduct('${p.id}')">Eliminar</button>
+                                ` : `<small class="text-muted">Solo lectura</small>`}
+                            </div>
+                        </div>
+                    </div>`;
+                container.appendChild(col);
+            });
+        }
+        
+        async function addProduct() {
+            const sku = document.getElementById('newSKU').value.trim();
+            const name = document.getElementById('newName').value.trim();
+            const minStock = Number(document.getElementById('newMinStock').value) || 0;
+
+            if (!sku || !name) return alert('Completa los campos SKU y Nombre.');
+
+            try {
+                const response = await fetch('/api/productos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sku, name, minStock })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Error al crear el producto.');
+                }
+
+                const newProduct = await response.json();
+                allProducts.push(newProduct);
+                renderProducts();
+
+                const modalEl = document.getElementById('productModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                // Limpiar formulario
+                document.getElementById('newSKU').value = '';
+                document.getElementById('newName').value = '';
+                document.getElementById('newMinStock').value = 0;
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
         }
 
+        function openEdit(id) {
+            const product = allProducts.find(p => p.id === id);
+            if (!product) return;
+
+            document.getElementById('editId').value = product.id;
+            document.getElementById('editSKU').value = product.sku;
+            document.getElementById('editName').value = product.name;
+            document.getElementById('editMinStock').value = product.minStock || 0;
+
+            const modalEl = document.getElementById('editProductModal');
+            new bootstrap.Modal(modalEl).show();
+        }
+
+        async function saveEdit() {
+            const id = document.getElementById('editId').value;
+            const sku = document.getElementById('editSKU').value.trim();
+            const name = document.getElementById('editName').value.trim();
+            const minStock = Number(document.getElementById('editMinStock').value) || 0;
+
+            if (!sku || !name) return alert('Completa los campos SKU y Nombre.');
+            
+            try {
+                const response = await fetch(`/api/productos/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sku, name, minStock })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Error al actualizar el producto.');
+                }
+                
+                // Actualizar la lista local
+                const index = allProducts.findIndex(p => p.id === id);
+                if (index !== -1) {
+                    allProducts[index] = { ...allProducts[index], sku, name, minStock };
+                }
+                renderProducts();
+
+                const modalEl = document.getElementById('editProductModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) return;
+            
+            try {
+                const response = await fetch(`/api/productos/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Error al eliminar el producto.');
+                }
+
+                allProducts = allProducts.filter(p => p.id !== id);
+                renderProducts();
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        // Helper para sombra en scroll
         function attachStickyShadow(cardId) {
             const card = document.getElementById(cardId);
             if (!card) return;
@@ -216,139 +347,6 @@
             const toggle = () => card.classList.toggle('scrolled', scroller.scrollTop > 0);
             scroller.addEventListener('scroll', toggle);
             toggle();
-        }
-
-        function renderProducts() {
-            const container = document.getElementById('productsContainer');
-            const q = (document.getElementById('searchInput').value || '').toLowerCase();
-            container.innerHTML = '';
-
-            const filtered = db.products.filter(p => (p.sku + ' ' + p.name).toLowerCase().includes(q));
-            if (filtered.length === 0) {
-                container.innerHTML = `
-          <div class="col-12">
-            <div class="card p-3 text-center shadow-sm">
-              <div class="text-muted">No hay productos para mostrar.</div>
-            </div>
-          </div>`;
-                return;
-            }
-
-            filtered.forEach(p => {
-                const col = document.createElement('div');
-                col.className = 'col-lg-4 col-md-6 col-12 product-col';
-
-                const min = Number(p.minStock) || 0;
-                const warehousesHTML = db.warehouses.map(w => {
-                    const qty = p.stocks?.[w.id] ?? 0;
-                    return `
-            <div class="d-flex justify-content-between border p-2 rounded mb-1">
-              <div>${w.name}</div>
-              <div>${qty}</div>
-            </div>`;
-                }).join('');
-
-                col.innerHTML = `
-          <div class="card h-100 shadow-sm text-start">
-            <div class="card-body">
-              <h5 class="card-title">${p.name} <small class="opacity-75">(${p.sku})</small></h5>
-              <p class="card-text">Stock mínimo: ${min}</p>
-              <div class="mb-2">${warehousesHTML}</div>
-              <div class="d-flex gap-2">
-                ${canEditProducts() ? `
-                  <button class="btn btn-success btn-sm" onclick="openEdit('${p.id}')">Editar</button>
-                  <button class="btn btn-outline-danger btn-sm" onclick="deleteProduct('${p.id}')">Eliminar</button>
-                ` : `<small class="text-muted">Solo lectura</small>`}
-              </div>
-            </div>
-          </div>`;
-                container.appendChild(col);
-            });
-        }
-
-        function buildSKUFromNumber(numStr) {
-            const clean = (numStr || '').trim();
-            if (!clean) return '';
-            const onlyNum = clean.replace(/^SKU/i, '');
-            return 'SKU' + onlyNum;
-        }
-        function skuNumberPart(sku) {
-            if (!sku) return '';
-            const m = sku.match(/^SKU\s*(.+)$/i);
-            return m ? m[1] : sku;
-        }
-
-        function addProduct() {
-            if (!canEditProducts()) return alert('No tienes permiso para crear productos');
-            const skuNum = document.getElementById('newSKUNum').value;
-            const name = document.getElementById('newName').value.trim();
-            const minStock = Number(document.getElementById('newMinStock').value) || 0;
-
-            const sku = buildSKUFromNumber(skuNum);
-            if (!sku || !name) return alert('Completa todos los campos');
-            if (db.products.some(p => p.sku.toLowerCase() === sku.toLowerCase())) return alert('SKU ya existe');
-
-            const id = 'p' + Date.now();
-            const stocks = db.warehouses.reduce((acc, w) => (acc[w.id] = 0, acc), {});
-            db.products.push({ id, sku, name, minStock, stocks });
-
-            saveDB();
-            renderProducts();
-
-            const el = document.getElementById('productModal');
-            const instance = bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
-            instance.hide();
-            document.getElementById('newSKUNum').value = '';
-            document.getElementById('newName').value = '';
-            document.getElementById('newMinStock').value = 0;
-        }
-
-        function openEdit(id) {
-            if (!canEditProducts()) return;
-            const p = db.products.find(x => x.id === id);
-            if (!p) return;
-
-            document.getElementById('editId').value = p.id;
-            document.getElementById('editSKUNum').value = skuNumberPart(p.sku);
-            document.getElementById('editName').value = p.name;
-            document.getElementById('editMinStock').value = p.minStock ?? 0;
-
-            const el = document.getElementById('editProductModal');
-            (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show();
-        }
-
-        function saveEdit() {
-            if (!canEditProducts()) return;
-            const id = document.getElementById('editId').value;
-            const skuNum = document.getElementById('editSKUNum').value;
-            const name = document.getElementById('editName').value.trim();
-            const minStock = Number(document.getElementById('editMinStock').value) || 0;
-
-            const newSKU = buildSKUFromNumber(skuNum);
-            if (!newSKU || !name) return alert('Completa todos los campos');
-
-            const duplicated = db.products.some(p => p.id !== id && p.sku.toLowerCase() === newSKU.toLowerCase());
-            if (duplicated) return alert('SKU ya existe');
-
-            db.products = db.products.map(p => {
-                if (p.id !== id) return p;
-                return { ...p, sku: newSKU, name, minStock };
-            });
-
-            saveDB();
-            renderProducts();
-
-            const el = document.getElementById('editProductModal');
-            (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).hide();
-        }
-
-        function deleteProduct(id) {
-            if (!canEditProducts()) return;
-            if (!confirm('¿Eliminar producto?')) return;
-            db.movements = db.movements?.filter(m => m.productId !== id) || [];
-            db.products = db.products.filter(p => p.id !== id);
-            saveDB();
-            renderProducts();
         }
     </script>
 </body>

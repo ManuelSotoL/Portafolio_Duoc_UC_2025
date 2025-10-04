@@ -15,16 +15,12 @@
     <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('dashboard') }}">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack logo"
-                    class="me-2" />
+                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack logo" class="me-2" />
                 <span class="text-dark">Inventrack</span>
             </a>
-
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link" href="/pagina_principal">Inicio</a></li>
@@ -35,24 +31,13 @@
                     <li class="nav-item"><a class="nav-link active" href="{{ url_for('reportes') }}">Reportes</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a></li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser"
-                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user-circle me-1"></i> {{ usuario }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
-                            <li>
-                                <a class="dropdown-item" href="/mi_perfil">
-                                    <i class="fas fa-user"></i> Mi Perfil
-                                </a>
-                            </li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li>
-                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
-                                    <i class="fas fa-sign-out-alt"></i> Salir
-                                </a>
-                            </li>
+                            <li><a class="dropdown-item" href="/mi_perfil"><i class="fas fa-user"></i> Mi Perfil</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Salir</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -72,9 +57,7 @@
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label">Bodega</label>
-                        <select id="fltWarehouse" class="form-select">
-                            <option value="">Todas</option>
-                        </select>
+                        <select id="fltWarehouse" class="form-select"><option value="">Todas</option></select>
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label">Opciones</label>
@@ -91,28 +74,18 @@
             <div class="col-md-6">
                 <div class="card shadow-sm card-scroll">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <div>
-                            <span>Stock bajo</span>
-                            <span class="badge bg-secondary ms-2" id="lowCount">0</span>
-                        </div>
-                        <button class="btn btn-success btn-sm soft-hover" onclick="downloadLowStockCSV()">Exportar
-                            CSV</button>
+                        <div><span>Stock bajo</span><span class="badge bg-secondary ms-2" id="lowCount">0</span></div>
+                        <button class="btn btn-success btn-sm soft-hover" onclick="downloadLowStockCSV()">Exportar CSV</button>
                     </div>
-                    <div class="card-body">
-                        <div class="scroll-body" id="reportLowStockContainer"></div>
-                    </div>
+                    <div class="card-body"><div class="scroll-body" id="reportLowStockContainer"></div></div>
                 </div>
             </div>
-
             <div class="col-md-6">
                 <div class="card shadow-sm card-scroll">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <span>Resumen por Bodega</span>
-                        <span class="badge bg-secondary" id="summaryCount">0</span>
+                        <span>Resumen por Bodega</span><span class="badge bg-secondary" id="summaryCount">0</span>
                     </div>
-                    <div class="card-body">
-                        <div class="scroll-body" id="warehouseSummary"></div>
-                    </div>
+                    <div class="card-body"><div class="scroll-body" id="warehouseSummary"></div></div>
                 </div>
             </div>
         </div>
@@ -121,7 +94,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // --- Auth ---
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
         function requireSession() {
             if (!IS_AUTH) {
@@ -130,181 +102,146 @@
             }
             return true;
         }
-        function logout() {
-            try { sessionStorage.removeItem('inventrackUser'); } catch { }
-            window.location.href = "{{ url_for('logout') }}";
-        }
 
-        // --- DESACTIVAR localStorage: no leer/ni escribir ---
-        const LS_KEY = 'inventrackDB';
-        function loadDB() {
-            // Devolvemos estructuras vacías (sin tocar localStorage)
-            return { products: [], warehouses: [], movements: [] };
-        }
-        function saveDB() {
-            // No-op mientras localStorage está desactivado
-        }
+        let currentLowStockData = []; // Para la exportación a CSV
 
-        function ensureStocksForWarehouses() {
-            db.products = db.products.map(p => ({
-                ...p,
-                stocks: db.warehouses.reduce((acc, w) => {
-                    acc[w.id] = typeof acc[w.id] === 'number' ? acc[w.id] : 0;
-                    return acc;
-                }, { ...(p.stocks || {}) })
-            }));
-        }
-
-        let db = loadDB();
-        let filters = { q: '', wid: '', onlyLow: false };
-
-        function initReports() {
+        async function initReports() {
             if (!requireSession()) return;
-            ensureStocksForWarehouses();
-            saveDB();
 
-            const sel = document.getElementById('fltWarehouse');
-            db.warehouses.forEach(w => {
-                const opt = document.createElement('option');
-                opt.value = w.id;
-                opt.textContent = w.name;
-                sel.appendChild(opt);
-            });
+            // 1. Cargar bodegas en el selector de filtros
+            try {
+                const response = await fetch('/api/bodegas');
+                const warehouses = await response.json();
+                const sel = document.getElementById('fltWarehouse');
+                warehouses.forEach(w => {
+                    sel.innerHTML += `<option value="${w.id}">${w.name}</option>`;
+                });
+            } catch (error) {
+                console.error("Error cargando bodegas:", error);
+            }
 
+            // 2. Adjuntar eventos a los filtros
             document.getElementById('fltQuery').addEventListener('input', applyFilters);
             document.getElementById('fltWarehouse').addEventListener('change', applyFilters);
             document.getElementById('fltOnlyLow').addEventListener('change', applyFilters);
 
-            renderAll();
+            // 3. Cargar los reportes iniciales
+            applyFilters();
         }
 
+        // Función que se dispara con cualquier cambio en los filtros
         function applyFilters() {
-            filters.q = (document.getElementById('fltQuery').value || '').toLowerCase();
-            filters.wid = document.getElementById('fltWarehouse').value || '';
-            filters.onlyLow = document.getElementById('fltOnlyLow').checked;
-            renderAll();
-        }
+            const query = document.getElementById('fltQuery').value;
+            const warehouseId = document.getElementById('fltWarehouse').value;
+            const onlyLow = document.getElementById('fltOnlyLow').checked;
 
-        function renderAll() {
-            renderLowStock();
-            renderWarehouseSummary();
-        }
-
-        function getLowStockRaw() {
-            const lowStock = [];
-            db.products.forEach(p => {
-                db.warehouses.forEach(w => {
-                    const qty = p.stocks?.[w.id] ?? 0;
-                    if (qty < (p.minStock ?? 0)) lowStock.push({ product: p, warehouse: w, qty });
-                });
+            // Construir la URL con parámetros de consulta
+            const params = new URLSearchParams({
+                q: query,
+                wid: warehouseId,
+                onlyLow: onlyLow
             });
-            return lowStock;
+
+            fetchAndRenderReports(params.toString());
         }
 
-        function getLowStockFiltered() {
-            let data = getLowStockRaw();
-            if (filters.wid) data = data.filter(a => a.warehouse.id === filters.wid);
-            if (filters.q) {
-                data = data.filter(a =>
-                    (a.product.name + ' ' + a.product.sku).toLowerCase().includes(filters.q)
-                );
+        // Función central para buscar datos en la API y renderizar
+        async function fetchAndRenderReports(queryString) {
+            const lowStockContainer = document.getElementById('reportLowStockContainer');
+            const summaryContainer = document.getElementById('warehouseSummary');
+            lowStockContainer.innerHTML = `<div class="text-muted">Cargando...</div>`;
+            summaryContainer.innerHTML = `<div class="text-muted">Cargando...</div>`;
+
+            try {
+                const response = await fetch(`/api/reportes/stock?${queryString}`);
+                if (!response.ok) throw new Error('Error en la respuesta del servidor.');
+                
+                const data = await response.json();
+                currentLowStockData = data.low_stock || []; // Guardar datos para CSV
+
+                renderLowStock(data.low_stock || []);
+                renderWarehouseSummary(data.summary || []);
+            } catch (error) {
+                console.error("Error al obtener reportes:", error);
+                lowStockContainer.innerHTML = `<div class="text-danger">Error al cargar datos.</div>`;
+                summaryContainer.innerHTML = `<div class="text-danger">Error al cargar datos.</div>`;
             }
-            return data;
         }
 
-        function renderLowStock() {
+        function renderLowStock(items) {
             const container = document.getElementById('reportLowStockContainer');
-            const countEl = document.getElementById('lowCount');
-            let items = getLowStockFiltered();
-
-            countEl.textContent = String(items.length);
-
-            if (!items.length) {
-                container.innerHTML = '<div class="text-muted">No hay productos bajo el mínimo.</div>';
+            document.getElementById('lowCount').textContent = items.length;
+            
+            if (items.length === 0) {
+                container.innerHTML = '<div class="text-muted p-2">No hay productos bajo el mínimo con los filtros actuales.</div>';
                 return;
             }
 
-            container.innerHTML = '';
-            items.forEach(a => {
-                const div = document.createElement('div');
-                div.className = 'p-2 mb-2 border rounded d-flex justify-content-between align-items-center bg-warning-subtle';
-                div.innerHTML = `
-          <div>
-            <div class="fw-semibold">${a.product.name} <small class="text-muted">(${a.product.sku})</small></div>
-            <small class="text-muted">Bodega: ${a.warehouse.name}</small>
-          </div>
-          <div class="text-end">
-            <span class="badge bg-danger text-light">${a.qty}</span>
-            <div class="text-xs text-muted">Mín: ${a.product.minStock}</div>
-          </div>`;
-                container.appendChild(div);
-            });
+            container.innerHTML = items.map(item => `
+                <div class="p-2 mb-2 border rounded d-flex justify-content-between align-items-center bg-warning-subtle">
+                    <div>
+                        <div class="fw-semibold">${item.product_name} <small class="text-muted">(${item.product_sku})</small></div>
+                        <small class="text-muted">Bodega: ${item.warehouse_name}</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-danger text-light">${item.qty}</span>
+                        <div class="text-xs text-muted">Mín: ${item.min_stock}</div>
+                    </div>
+                </div>`).join('');
         }
 
-        function renderWarehouseSummary() {
+        function renderWarehouseSummary(items) {
             const container = document.getElementById('warehouseSummary');
-            const summaryCount = document.getElementById('summaryCount');
-            container.innerHTML = '';
+            document.getElementById('summaryCount').textContent = items.length;
 
-            const warehousesToShow = filters.wid ? db.warehouses.filter(w => w.id === filters.wid) : db.warehouses;
+            if (items.length === 0) {
+                container.innerHTML = '<div class="text-muted p-2">No hay productos para mostrar con los filtros actuales.</div>';
+                return;
+            }
 
-            let rowsRendered = 0;
+            // Agrupar productos por bodega
+            const groupedByWarehouse = items.reduce((acc, item) => {
+                const key = item.warehouse_name;
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(item);
+                return acc;
+            }, {});
 
-            warehousesToShow.forEach(w => {
-                const card = document.createElement('div');
-                card.className = 'mb-3 p-2 border rounded bg-warning-subtle';
-
-                let content = `<div class="fw-bold mb-2">${w.name}</div>`;
-                const prods = db.products.filter(p =>
-                    !filters.q || (p.name + ' ' + p.sku).toLowerCase().includes(filters.q)
-                );
-
-                let any = false;
-                prods.forEach(p => {
-                    const qty = p.stocks?.[w.id] ?? 0;
-                    if (filters.onlyLow && !(qty < (p.minStock ?? 0))) return;
-                    any = true;
-                    rowsRendered++;
-                    content += `
-            <div class="d-flex justify-content-between">
-              <span>${p.name} <small class="text-muted">(${p.sku})</small></span>
-              <span class="badge ${qty < (p.minStock ?? 0) ? 'bg-danger text-light' : 'bg-secondary text-dark'}">${qty}</span>
-            </div>`;
-                });
-
-                if (!any) {
-                    content += `<div class="text-muted">Sin productos para mostrar con los filtros actuales.</div>`;
-                }
-
-                card.innerHTML = content;
-                container.appendChild(card);
-            });
-
-            summaryCount.textContent = String(rowsRendered);
+            container.innerHTML = Object.keys(groupedByWarehouse).map(warehouseName => {
+                const productsHtml = groupedByWarehouse[warehouseName].map(p => `
+                    <div class="d-flex justify-content-between">
+                        <span>${p.product_name} <small class="text-muted">(${p.product_sku})</small></span>
+                        <span class="badge ${p.is_low ? 'bg-danger text-light' : 'bg-secondary text-dark'}">${p.qty}</span>
+                    </div>`).join('');
+                
+                return `<div class="mb-3 p-2 border rounded bg-light">
+                            <div class="fw-bold mb-2">${warehouseName}</div>
+                            ${productsHtml}
+                        </div>`;
+            }).join('');
         }
 
         function downloadLowStockCSV() {
-            const lowStock = getLowStockFiltered();
-            const rows = [["Producto", "SKU", "Bodega", "Stock", "Mínimo"]];
-            lowStock.forEach(a =>
-                rows.push([a.product.name, a.product.sku, a.warehouse.name, a.qty, a.product.minStock])
-            );
-
-            if (rows.length === 1) {
-                alert("No hay datos para exportar con los filtros aplicados");
+            if (currentLowStockData.length === 0) {
+                alert("No hay datos de stock bajo para exportar con los filtros aplicados.");
                 return;
             }
 
-            const csv = rows.map(r =>
-                r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(",")
-            ).join("\n");
+            const rows = [["Producto", "SKU", "Bodega", "Stock Actual", "Stock Mínimo"]];
+            currentLowStockData.forEach(item => {
+                rows.push([item.product_name, item.product_sku, item.warehouse_name, item.qty, item.min_stock]);
+            });
 
-            const a = document.createElement('a');
-            a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-            a.download = `alertas_stock_bajo_${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
+            const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `reporte_stock_bajo_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     </script>
 </body>
-
 </html>

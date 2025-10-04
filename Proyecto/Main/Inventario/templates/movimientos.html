@@ -98,18 +98,50 @@
                 window.location.href = "{{ url_for('login') }}";
                 return false;
             }
+            // Mock de un usuario para pruebas si no hay sesión real
+            if (!sessionStorage.getItem('inventrackUser')) {
+                sessionStorage.setItem('inventrackUser', JSON.stringify({ name: 'Admin', role: 'admin' }));
+            }
             return true;
         }
+
         function logout() {
             try { sessionStorage.removeItem('inventrackUser'); } catch { }
             window.location.href = "{{ url_for('logout') }}";
         }
+        
+        // ===== LocalStorage ACTIVADO =====
+        function saveDB() {
+            try {
+                localStorage.setItem('inventrackDB', JSON.stringify(db));
+            } catch (e) {
+                console.error("Error guardando en LocalStorage:", e);
+            }
+        }
 
-        // ===== LocalStorage DESACTIVADO =====
-        function saveDB() { /* no-op: desactivado */ }
         function loadDB() {
-            // Estructura vacía (no persiste en el navegador)
-            return { products: [], warehouses: [], movements: [], users: [] };
+            try {
+                const data = localStorage.getItem('inventrackDB');
+                if (data) {
+                    return JSON.parse(data);
+                }
+            } catch (e) {
+                console.error("Error cargando de LocalStorage:", e);
+            }
+            // --- DATOS DE EJEMPLO SI NO HAY NADA GUARDADO ---
+            return {
+                products: [
+                    { id: 'p162222', name: 'Laptop Pro 15"', sku: 'LP15-2024', stocks: { w1: 10, w2: 5 } },
+                    { id: 'p163333', name: 'Mouse Inalámbrico', sku: 'MI-LOGI-01', stocks: { w1: 30, w2: 15 } },
+                    { id: 'p164444', name: 'Teclado Mecánico', sku: 'TM-RAZ-RGB', stocks: { w1: 12, w2: 0 } }
+                ],
+                warehouses: [
+                    { id: 'w1', name: 'Bodega Central' },
+                    { id: 'w2', name: 'Sucursal Este' }
+                ],
+                movements: [],
+                users: []
+            };
         }
         let db = loadDB();
         // =====================================
@@ -118,9 +150,9 @@
             db.products = db.products.map(p => ({
                 ...p,
                 stocks: db.warehouses.reduce((acc, w) => {
-                    acc[w.id] = typeof acc[w.id] === 'number' ? acc[w.id] : 0;
+                    acc[w.id] = p.stocks?.[w.id] || 0;
                     return acc;
-                }, { ...(p.stocks || {}) })
+                }, {})
             }));
         }
 
@@ -199,7 +231,7 @@
             const to = document.getElementById('movTo');
 
             if (prodSelect) {
-                prodSelect.innerHTML = '';
+                prodSelect.innerHTML = db.products.length ? '' : '<option disabled selected>Sin productos</option>';
                 db.products.forEach(p => {
                     const opt = document.createElement('option');
                     opt.value = p.id;
@@ -209,8 +241,8 @@
             }
 
             if (from && to) {
-                from.innerHTML = '';
-                to.innerHTML = '';
+                from.innerHTML = db.warehouses.length ? '' : '<option disabled selected>Sin bodegas</option>';
+                to.innerHTML = db.warehouses.length ? '' : '<option disabled selected>Sin bodegas</option>';
                 db.warehouses.forEach(w => {
                     const of = document.createElement('option'); of.value = w.id; of.textContent = w.name; from.appendChild(of);
                     const ot = document.createElement('option'); ot.value = w.id; ot.textContent = w.name; to.appendChild(ot);
@@ -229,23 +261,25 @@
 
             if (!productId || !qty) return alert("Seleccione producto y una cantidad válida (>=1)");
             const product = db.products.find(p => p.id === productId);
-            if (!product) return;
+            if (!product) return alert("Producto no encontrado.");
 
-            if (type === "OUT" && (product.stocks[fromW] || 0) < qty) return alert("Stock insuficiente");
-            if (type === "TRANSFER") {
-                if (fromW === toW) return alert("Origen y destino no pueden ser iguales");
-                if ((product.stocks[fromW] || 0) < qty) return alert("Stock insuficiente en origen");
+            if (type === "TRANSFER" && fromW === toW) return alert("La bodega de origen y destino no pueden ser iguales.");
+            
+            if (type === "OUT" || type === "TRANSFER") {
+                if ((product.stocks[fromW] || 0) < qty) return alert(`Stock insuficiente en la bodega de origen. Stock actual: ${product.stocks[fromW] || 0}`);
             }
 
-            const movement = { id: 'm' + Date.now(), type, productId, qty, fromW, toW, date: new Date().toLocaleString(), note };
-            if (type === "IN" && toW) product.stocks[toW] = (product.stocks[toW] || 0) + qty;
-            if (type === "OUT" && fromW) product.stocks[fromW] = (product.stocks[fromW] || 0) - qty;
-            if (type === "TRANSFER" && fromW && toW) {
+            // Actualizar stock
+            if (type === "IN") product.stocks[toW] = (product.stocks[toW] || 0) + qty;
+            if (type === "OUT") product.stocks[fromW] -= qty;
+            if (type === "TRANSFER") {
                 product.stocks[fromW] -= qty;
                 product.stocks[toW] = (product.stocks[toW] || 0) + qty;
             }
 
+            const movement = { id: 'm' + Date.now(), type, productId, qty, fromW, toW, date: new Date().toLocaleString(), note };
             db.movements.unshift(movement);
+            
             saveDB();
             document.getElementById('movQty').value = '';
             document.getElementById('movNote').value = '';
@@ -258,40 +292,69 @@
             container.innerHTML = '';
             const typeLabels = { IN: "Entrada", OUT: "Salida", TRANSFER: "Transferencia" };
 
-            db.movements
-                .filter(m => {
-                    const p = db.products.find(p2 => p2.id === m.productId);
-                    const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
-                    const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
-                    const s = [p?.name, p?.sku, m.type, fromName, toName, m.note].join(' ').toLowerCase();
-                    return s.includes(search);
-                })
-                .forEach(m => {
-                    const p = db.products.find(p2 => p2.id === m.productId);
-                    const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
-                    const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
-                    const div = document.createElement('div');
-                    div.className = 'movement-card d-flex justify-content-between align-items-center';
-                    div.innerHTML = `
-            <div>
-              <strong>${typeLabels[m.type]}</strong> - ${p?.name || ''} (${p?.sku || ''})<br>
-              ${fromName ? 'Desde: ' + fromName : ''} ${toName ? ' → ' + toName : ''}<br>
-              Cantidad: ${m.qty}<br>
-              Nota: ${m.note || '---'}<br>
-              <small>${m.date}</small>
-            </div>
-            ${canManageMovements() ? `
-              <button class="btn btn-sm btn-outline-danger" onclick="deleteMovement('${m.id}')">Eliminar</button>
-            ` : ``}
-          `;
-                    container.appendChild(div);
-                });
-        }
+            const filteredMovements = db.movements.filter(m => {
+                const p = db.products.find(p2 => p2.id === m.productId);
+                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                const s = [p?.name, p?.sku, typeLabels[m.type], fromName, toName, m.note, m.date].join(' ').toLowerCase();
+                return s.includes(search);
+            });
 
+            if (!filteredMovements.length) {
+                container.innerHTML = '<p class="text-center text-muted mt-3">No se encontraron movimientos.</p>';
+                return;
+            }
+
+            filteredMovements.forEach(m => {
+                const p = db.products.find(p2 => p2.id === m.productId);
+                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
+                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+                const div = document.createElement('div');
+                div.className = 'movement-card d-flex justify-content-between align-items-center';
+                
+                let locationInfo = '';
+                if (m.type === 'IN') locationInfo = `Hacia: ${toName}`;
+                else if (m.type === 'OUT') locationInfo = `Desde: ${fromName}`;
+                else if (m.type === 'TRANSFER') locationInfo = `Desde: ${fromName} → Hacia: ${toName}`;
+
+                div.innerHTML = `
+                    <div>
+                        <strong>${typeLabels[m.type]}</strong> - ${p?.name || 'N/A'} (${p?.sku || 'N/A'})<br>
+                        ${locationInfo}<br>
+                        Cantidad: <strong>${m.qty}</strong><br>
+                        Nota: ${m.note || '---'}<br>
+                        <small class="text-muted">${m.date}</small>
+                    </div>
+                    ${canManageMovements() ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMovement('${m.id}')"><i class="fas fa-trash"></i></button>` : ''}
+                `;
+                container.appendChild(div);
+            });
+        }
+        
+        // ===== FUNCIÓN DE ELIMINAR CORREGIDA =====
         function deleteMovement(id) {
             if (!canManageMovements()) return;
-            if (!confirm("¿Eliminar este movimiento?")) return;
-            db.movements = db.movements.filter(m => m.id !== id);
+            
+            const movIndex = db.movements.findIndex(m => m.id === id);
+            if (movIndex === -1) return;
+            
+            const movement = db.movements[movIndex];
+            const product = db.products.find(p => p.id === movement.productId);
+
+            if (!confirm(`¿Eliminar este movimiento?\n\nEsta acción revertirá el cambio de stock.`)) return;
+
+            // Revertir el cambio en el stock
+            if (product) {
+                const { type, qty, fromW, toW } = movement;
+                if (type === "IN") product.stocks[toW] = (product.stocks[toW] || 0) - qty;
+                if (type === "OUT") product.stocks[fromW] = (product.stocks[fromW] || 0) + qty;
+                if (type === "TRANSFER") {
+                    product.stocks[fromW] = (product.stocks[fromW] || 0) + qty;
+                    product.stocks[toW] = (product.stocks[toW] || 0) - qty;
+                }
+            }
+
+            db.movements.splice(movIndex, 1); // Eliminar el movimiento del array
             saveDB();
             renderMovements();
         }
@@ -318,5 +381,4 @@
         }
     </script>
 </body>
-
 </html>
