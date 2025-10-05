@@ -40,9 +40,9 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
                             <li>
-                                <a class="dropdown-item" href="/mi_perfil">
-                                    <i class="fas fa-user"></i> Mi Perfil
-                                </a>
+                                <a class="dropdown-item" href="{{ url_for('mi_perfil') }}"><i class="fas fa-user"></i>
+                                    Mi Perfil</a>
+
                             </li>
                             <li>
                                 <hr class="dropdown-divider">
@@ -108,7 +108,7 @@
     <script>
         // Variable global para almacenar el rol del usuario actual
         let currentUserRole = 'visor';
-    
+
         // -------- Autenticación (Flask) --------
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
         function requireSession() {
@@ -118,55 +118,55 @@
             }
             return true;
         }
-    
+
         // Inicializador principal de la página
         async function initWarehouses() {
             if (!requireSession()) return;
-            
+
             try {
                 // 1. Obtener el rol del usuario actual para gestionar permisos en el frontend
                 const roleResponse = await fetch('/api/user_role');
                 const roleData = await roleResponse.json();
                 currentUserRole = roleData.role || 'visor';
-    
+
                 // 2. Renderizar los componentes de la página
                 renderAddWarehouse();
-                
+
                 const warehouses = await fetchWarehouses();
                 renderWarehouses(warehouses);
                 renderWarehouseSelector(warehouses);
-                
+
                 // 3. Renderizar la tabla de productos para la bodega seleccionada
                 await renderProductStocksTable();
-    
+
             } catch (error) {
                 console.error("Error inicializando la página de bodegas:", error);
                 alert("No se pudo cargar la información de las bodegas. Revisa la consola para más detalles.");
             }
         }
-    
+
         // Función para verificar permisos basada en el rol
         function can(role) {
             return currentUserRole === role;
         }
-    
+
         // -------- Funciones de obtención de datos (API) --------
-    
+
         async function fetchWarehouses() {
             const response = await fetch('/api/bodegas');
             if (!response.ok) throw new Error('Error al obtener bodegas');
             return await response.json();
         }
-    
+
         async function fetchProductsForWarehouse(warehouseId) {
             if (!warehouseId) return [];
             const response = await fetch(`/api/bodegas/${warehouseId}/productos`);
             if (!response.ok) throw new Error('Error al obtener productos');
             return await response.json();
         }
-    
+
         // -------- Funciones de renderizado --------
-    
+
         function renderAddWarehouse() {
             const container = document.getElementById("addWarehouseContainer");
             if (!can("admin")) {
@@ -179,19 +179,19 @@
                   <button class="btn btn-primary" onclick="addWarehouse()">Agregar</button>
                 </div>`;
         }
-    
+
         function renderWarehouses(warehouses = []) {
             const container = document.getElementById("warehousesList");
             const totalEl = document.getElementById("totalWarehousesCount");
             container.innerHTML = "";
-            
+
             if (totalEl) totalEl.textContent = warehouses.length;
-    
+
             if (!warehouses.length) {
                 container.innerHTML = `<div class="text-muted">No hay bodegas registradas.</div>`;
                 return;
             }
-    
+
             warehouses.forEach(w => {
                 const item = document.createElement("div");
                 item.className = "list-group-item d-flex justify-content-between align-items-center";
@@ -203,11 +203,11 @@
                 container.appendChild(item);
             });
         }
-    
+
         function renderWarehouseSelector(warehouses = []) {
             const sel = document.getElementById("selWarehouse");
             sel.innerHTML = "";
-    
+
             if (!warehouses.length) {
                 sel.disabled = true;
                 sel.innerHTML = `<option value="">No hay bodegas</option>`;
@@ -215,7 +215,7 @@
                 document.getElementById("btnSaveStocks").disabled = true;
                 return;
             }
-    
+
             sel.disabled = false;
             warehouses.forEach(w => {
                 const opt = document.createElement("option");
@@ -223,33 +223,33 @@
                 opt.textContent = w.name;
                 sel.appendChild(opt);
             });
-            
+
             document.getElementById("btnSaveStocks").disabled = !can("admin");
         }
-    
+
         async function renderProductStocksTable() {
             const container = document.getElementById("assignSection");
             const sel = document.getElementById("selWarehouse");
             const filter = (document.getElementById("filterProducts")?.value || "").toLowerCase();
             container.innerHTML = `<div class="text-center text-muted p-3">Cargando productos...</div>`;
-    
+
             if (!sel.value) {
                 container.innerHTML = `<div class="text-muted">Selecciona una bodega para asignar stock.</div>`;
                 return;
             }
-    
+
             try {
                 const products = await fetchProductsForWarehouse(sel.value);
                 const filtered = products.filter(p =>
                     (p.name || "").toLowerCase().includes(filter) ||
                     (p.sku || "").toLowerCase().includes(filter)
                 );
-    
+
                 if (!filtered.length) {
                     container.innerHTML = `<div class="text-muted">No hay productos o no coinciden con el filtro.</div>`;
                     return;
                 }
-    
+
                 const rows = filtered.map(p => `
                   <tr>
                     <td>${p.name || "(sin nombre)"}</td>
@@ -261,7 +261,7 @@
                     </td>
                     <td class="text-end">${p.stock_total}</td>
                   </tr>`).join("");
-    
+
                 container.innerHTML = `
                   <div class="scroll-table">
                     <table class="table table-sm align-middle mb-0">
@@ -279,26 +279,26 @@
                 container.innerHTML = `<div class="text-danger">Error al cargar los productos.</div>`;
             }
         }
-    
+
         // ---- Acciones (ahora con llamadas a la API) ----
-        
+
         async function addWarehouse() {
             const input = document.getElementById("warehouseName");
             const name = input.value.trim();
             if (!name) return alert("Por favor, ingresa un nombre para la bodega.");
-    
+
             try {
                 const response = await fetch('/api/bodegas', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })
                 });
-    
+
                 if (!response.ok) {
                     const errData = await response.json();
                     throw new Error(errData.error || "Error desconocido");
                 }
-                
+
                 input.value = "";
                 alert("Bodega agregada con éxito.");
                 await initWarehouses(); // Recarga toda la info
@@ -306,10 +306,10 @@
                 alert(`Error al agregar bodega: ${error.message}`);
             }
         }
-    
+
         async function deleteWarehouse(id) {
             if (!confirm("¿Estás seguro de que quieres eliminar esta bodega? Se eliminará el stock asociado en todos los productos.")) return;
-    
+
             try {
                 const response = await fetch(`/api/bodegas/${id}`, { method: 'DELETE' });
                 if (!response.ok) {
@@ -322,29 +322,29 @@
                 alert(`Error al eliminar bodega: ${error.message}`);
             }
         }
-    
+
         async function saveStocksForWarehouse() {
             const warehouseId = document.getElementById("selWarehouse").value;
             if (!warehouseId) return alert("Selecciona una bodega primero.");
-    
+
             const inputs = document.querySelectorAll("#assignSection input[data-pid]");
             const updates = Array.from(inputs).map(input => ({
                 productId: input.dataset.pid,
                 stock: parseInt(input.value, 10) || 0
             }));
-    
+
             try {
                 const response = await fetch(`/api/bodegas/${warehouseId}/stocks`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updates)
                 });
-    
+
                 if (!response.ok) {
                     const errData = await response.json();
                     throw new Error(errData.error || "Error desconocido");
                 }
-                
+
                 alert("Stocks guardados con éxito.");
                 await renderProductStocksTable(); // Recarga solo la tabla de productos
             } catch (error) {
@@ -352,6 +352,12 @@
             }
         }
     </script>
+
+    <footer class="mt-5 text-center">
+        <p class="small opacity-75 mb-4">&copy; 2025 Inventrack. Todos los derechos reservados.</p>
+    </footer>
+
+
 </body>
 
 </html>

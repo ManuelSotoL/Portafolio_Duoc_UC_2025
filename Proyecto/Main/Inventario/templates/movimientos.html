@@ -41,9 +41,9 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
                             <li>
-                                <a class="dropdown-item" href="/mi_perfil">
-                                    <i class="fas fa-user"></i> Mi Perfil
-                                </a>
+                                <a class="dropdown-item" href="{{ url_for('mi_perfil') }}"><i class="fas fa-user"></i>
+                                    Mi Perfil</a>
+
                             </li>
                             <li>
                                 <hr class="dropdown-divider">
@@ -302,7 +302,7 @@
                       ${locationInfo}<br>
                       Cantidad: <strong>${m.qty}</strong><br>
                       Nota: ${m.note ? m.note : '---'}<br>
-                      <small class="text-muted">${m.date || ''}</small>
+                      <small class="text-light">${m.date || ''}</small>
                     </div>
                     ${canManageMovements() ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMovement('${m.id}')"><i class="fas fa-trash"></i></button>` : ''}`;
                 container.appendChild(div);
@@ -440,6 +440,12 @@
             document.body.removeChild(link);
         }
     </script>
+
+    <footer class="mt-5 text-center">
+        <p class="small opacity-75 mb-4">&copy; 2025 Inventrack. Todos los derechos reservados.</p>
+    </footer>
+
+ 
 
 </body>
 

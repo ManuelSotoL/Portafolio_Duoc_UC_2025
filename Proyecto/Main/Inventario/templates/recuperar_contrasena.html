@@ -19,22 +19,27 @@
                 <strong>Recuperar Contraseña</strong>
             </div>
             <div class="card-body">
-                {% with messages = get_flashed_messages(category_filter=['success', 'error']) %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                <div class="alert {{ 'alert-success' if 'success' in messages[0] else 'alert-danger' }} alert-dismissible fade show"
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category=='success' else 'danger' }} alert-dismissible fade show"
                     role="alert">
-                    {{ messages[0] }}
+                    {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
+                {% endfor %}
                 {% endif %}
                 {% endwith %}
+
                 <form action="{{ url_for('recuperar_contrasena') }}" method="POST" novalidate>
-                    <div class="mb-3 position-relative">
+                    <div class="mb-2 position-relative">
                         <i class="fa-solid fa-envelope position-absolute"
                             style="left:12px; top:50%; transform:translateY(-50%); color:#04bd7d;"></i>
                         <input type="email" name="email" id="email" class="form-control ps-5"
-                            placeholder="Correo electrónico" required />
+                            placeholder="Correo electrónico" required autocomplete="email" />
                     </div>
+                    <div class="form-text mb-3 text-danger">Te enviaremos un enlace válido por 1 hora para restablecer tu
+                        contraseña.</div>
 
                     <button type="submit" class="btn btn-primary w-100">Enviar</button>
                 </form>
@@ -48,7 +53,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-
 </body>
 
 </html>

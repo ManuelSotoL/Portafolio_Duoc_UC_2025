@@ -255,9 +255,60 @@ def pagina_principal(): return render_template("index.html")
 @app.route("/mi_perfil")
 @login_required
 def mi_perfil():
-    user = collection.find_one({"usuario": session["usuario"]})
-    if not user: return redirect(url_for("logout"))
-    return render_template("mi_perfil.html", email=user.get("email"), rol=user.get("role"))
+    # Usa lo que haya en sesión y, si no encontramos al usuario en BD,
+    # NO cerramos sesión: mostramos el perfil con los datos de la sesión.
+    username = session.get("usuario")
+    user = collection.find_one({"usuario": username})
+
+    if not user:
+        flash("No pudimos cargar tus datos de perfil desde la base de datos. Mostrando la información de tu sesión.", "error")
+        return render_template(
+            "mi_perfil.html",
+            email="",                         # sin email porque no lo obtuvimos de BD
+            rol=session.get("role", "visor")  # rol desde sesión como respaldo
+        )
+
+    return render_template("mi_perfil.html", email=user.get("email", ""), rol=user.get("role", "visor"))
+
+@app.route("/mi_perfil/cambiar_contrasena", methods=["POST"])
+@login_required
+def cambiar_contrasena():
+    username = session.get("usuario")
+    user = collection.find_one({"usuario": username})
+
+    if not user:
+        flash("No pudimos verificar tu usuario. Intenta iniciar sesión nuevamente.", "error")
+        return redirect(url_for("login"))
+
+    actual   = request.form.get("current_password", "")
+    nueva    = request.form.get("new_password", "")
+    confirmar = request.form.get("confirm_password", "")
+
+    # Validaciones
+    if not actual or not nueva or not confirmar:
+        flash("Completa todos los campos.", "error")
+        return redirect(url_for("mi_perfil"))
+
+    if not bcrypt.check_password_hash(user["contrasena"], actual):
+        flash("La contraseña actual no es correcta.", "error")
+        return redirect(url_for("mi_perfil"))
+
+    if len(nueva) < 6:
+        flash("La nueva contraseña debe tener al menos 6 caracteres.", "error")
+        return redirect(url_for("mi_perfil"))
+
+    if nueva != confirmar:
+        flash("La confirmación no coincide con la nueva contraseña.", "error")
+        return redirect(url_for("mi_perfil"))
+
+    # Actualizar en BD
+    hashed = bcrypt.generate_password_hash(nueva).decode("utf-8")
+    collection.update_one({"_id": user["_id"]}, {"$set": {"contrasena": hashed}})
+
+    flash("¡Contraseña actualizada correctamente!", "success")
+    return redirect(url_for("mi_perfil"))
+
+
 
 @app.route("/dashboard")
 @login_required
@@ -332,8 +383,10 @@ def get_dashboard_stats():
 @app.route("/api/user_role")
 @login_required
 def get_user_role():
-    user = collection.find_one({"usuario": session["usuario"]})
-    return jsonify({"role": user.get("role", "visor")})
+    username = session.get("usuario")
+    user = collection.find_one({"usuario": username})
+    role = user.get("role", "visor") if user else session.get("role", "visor")
+    return jsonify({"role": role})
 
 @app.route("/api/users", methods=["GET", "POST"])
 @login_required

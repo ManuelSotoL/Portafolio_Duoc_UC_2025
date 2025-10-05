@@ -40,9 +40,9 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
                             <li>
-                                <a class="dropdown-item" href="/mi_perfil">
-                                    <i class="fas fa-user"></i> Mi Perfil
-                                </a>
+                                <a class="dropdown-item" href="{{ url_for('mi_perfil') }}"><i class="fas fa-user"></i>
+                                    Mi Perfil</a>
+
                             </li>
                             <li>
                                 <hr class="dropdown-divider">
@@ -157,7 +157,7 @@
             }
             return true;
         }
-        
+
         // Función para verificar permisos de edición
         function canEditProducts() {
             return ['admin', 'operador'].includes(currentUserRole);
@@ -165,7 +165,7 @@
 
         async function initProducts() {
             if (!requireSession()) return;
-            
+
             try {
                 // Obtener rol del usuario
                 const roleResponse = await fetch('/api/user_role');
@@ -190,13 +190,13 @@
                 alert("No se pudo cargar la información de los productos.");
             }
         }
-        
+
         function renderProducts() {
             const container = document.getElementById('productsContainer');
             const query = document.getElementById('searchInput').value.toLowerCase();
             container.innerHTML = '';
 
-            const filtered = allProducts.filter(p => 
+            const filtered = allProducts.filter(p =>
                 (p.sku.toLowerCase().includes(query) || p.name.toLowerCase().includes(query))
             );
 
@@ -231,7 +231,7 @@
                 container.appendChild(col);
             });
         }
-        
+
         async function addProduct() {
             const sku = document.getElementById('newSKU').value.trim();
             const name = document.getElementById('newName').value.trim();
@@ -288,7 +288,7 @@
             const minStock = Number(document.getElementById('editMinStock').value) || 0;
 
             if (!sku || !name) return alert('Completa los campos SKU y Nombre.');
-            
+
             try {
                 const response = await fetch(`/api/productos/${id}`, {
                     method: 'PUT',
@@ -300,7 +300,7 @@
                     const err = await response.json();
                     throw new Error(err.error || 'Error al actualizar el producto.');
                 }
-                
+
                 // Actualizar la lista local
                 const index = allProducts.findIndex(p => p.id === id);
                 if (index !== -1) {
@@ -319,7 +319,7 @@
 
         async function deleteProduct(id) {
             if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) return;
-            
+
             try {
                 const response = await fetch(`/api/productos/${id}`, {
                     method: 'DELETE'
@@ -349,6 +349,12 @@
             toggle();
         }
     </script>
+
+    <footer class="mt-5 text-center">
+        <p class="small opacity-75 mb-4">&copy; 2025 Inventrack. Todos los derechos reservados.</p>
+    </footer>
+
+
 </body>
 
 </html>

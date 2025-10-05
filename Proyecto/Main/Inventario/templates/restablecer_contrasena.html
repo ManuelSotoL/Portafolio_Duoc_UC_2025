@@ -19,26 +19,47 @@
                 <strong>Restablecer Contraseña</strong>
             </div>
             <div class="card-body">
-                {% with messages = get_flashed_messages() %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                <div class="alert {{ 'alert-success' if 'success' in messages[0] else 'alert-danger' }} alert-dismissible fade show"
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category=='success' else 'danger' }} alert-dismissible fade show"
                     role="alert">
-                    {{ messages[0] }}
+                    {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
+                {% endfor %}
                 {% endif %}
                 {% endwith %}
-                <form method="POST" novalidate>
-                    <div class="mb-3 position-relative">
+
+                <!-- POST a la misma URL /restablecer_contrasena/<token> -->
+                <form id="resetForm" method="POST" novalidate>
+                    <!-- Nueva contraseña -->
+                    <div class="mb-2 position-relative">
                         <i class="fa-solid fa-lock position-absolute"
                             style="left:12px; top:50%; transform:translateY(-50%); color:#04bd7d;"></i>
                         <input type="password" name="nueva_contrasena" id="nueva_contrasena" class="form-control ps-5"
-                            placeholder="Introduce tu nueva contraseña" required />
-                        <button type="button" id="togglePassword"
+                            placeholder="Nueva contraseña" required minlength="6" autocomplete="new-password" />
+                        <button type="button" id="togglePassword1"
                             class="btn btn-sm btn-link position-absolute top-0 end-0 mt-1 me-1"
                             aria-label="Mostrar u ocultar contraseña" style="text-decoration:none;">
                             <i class="fa-regular fa-eye"></i>
                         </button>
+                        <div class="form-text text-danger">Mínimo 6 caracteres.</div>
+                        <div class="invalid-feedback">La contraseña debe tener al menos 6 caracteres.</div>
+                    </div>
+
+                    <!-- Confirmar contraseña -->
+                    <div class="mb-3 position-relative">
+                        <i class="fa-solid fa-lock position-absolute"
+                            style="left:12px; top:50%; transform:translateY(-50%); color:#04bd7d;"></i>
+                        <input type="password" id="confirmar_contrasena" class="form-control ps-5"
+                            placeholder="Confirmar contraseña" required minlength="6" autocomplete="new-password" />
+                        <button type="button" id="togglePassword2"
+                            class="btn btn-sm btn-link position-absolute top-0 end-0 mt-1 me-1"
+                            aria-label="Mostrar u ocultar contraseña" style="text-decoration:none;">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                        <div class="invalid-feedback">Las contraseñas no coinciden.</div>
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100">Restablecer Contraseña</button>
@@ -56,20 +77,55 @@
 
     <script>
         (function () {
-            const pwd = document.getElementById('nueva_contrasena');
-            const btn = document.getElementById('togglePassword');
-            if (!pwd || !btn) return;
+            const form = document.getElementById('resetForm');
+            const pwd1 = document.getElementById('nueva_contrasena');
+            const pwd2 = document.getElementById('confirmar_contrasena');
+            const toggle1 = document.getElementById('togglePassword1');
+            const toggle2 = document.getElementById('togglePassword2');
 
-            btn.addEventListener('click', function () {
-                const isText = pwd.type === 'text';
-                pwd.type = isText ? 'password' : 'text';
+            // Mostrar/ocultar campos
+            function toggleVisibility(input, btn) {
+                btn.addEventListener('click', function () {
+                    const isText = input.type === 'text';
+                    input.type = isText ? 'password' : 'text';
+                    const icon = this.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('fa-eye');
+                        icon.classList.toggle('fa-eye-slash');
+                        if (!icon.classList.contains('fa-eye') && !icon.classList.contains('fa-eye-slash')) {
+                            icon.classList.add('fa-eye-slash');
+                        }
+                    }
+                });
+            }
+            toggleVisibility(pwd1, toggle1);
+            toggleVisibility(pwd2, toggle2);
 
-                const icon = this.querySelector('i');
-                if (icon) {
-                    icon.classList.toggle('fa-eye');
-                    icon.classList.toggle('fa-eye-slash');
-                    if (!icon.classList.contains('fa-eye') && !icon.classList.contains('fa-eye-slash')) {
-                        icon.classList.add('fa-eye-slash');
+            // Validación en submit (sin tocar backend)
+            form.addEventListener('submit', function (e) {
+                let ok = true;
+
+                // reset de estados
+                pwd1.classList.remove('is-invalid');
+                pwd2.classList.remove('is-invalid');
+
+                if (!pwd1.value || pwd1.value.length < 6) {
+                    pwd1.classList.add('is-invalid');
+                    ok = false;
+                }
+
+                if (pwd1.value !== pwd2.value) {
+                    pwd2.classList.add('is-invalid');
+                    ok = false;
+                }
+
+                if (!ok) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (pwd1.classList.contains('is-invalid')) {
+                        pwd1.focus();
+                    } else if (pwd2.classList.contains('is-invalid')) {
+                        pwd2.focus();
                     }
                 }
             });
