@@ -62,43 +62,7 @@
     <main class="container-dashboard">
         <h2 class="section-title text-center">Gestión de Usuarios</h2>
 
-        <div class="row g-4 w-100">
-            <div class="col-md-4" id="userFormCard">
-                <div class="card shadow-sm">
-                    <div class="card-header">Nuevo Usuario</div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">Nombre</label>
-                                <input id="userName" type="text" placeholder="Ej: Juan Pérez" class="form-control"
-                                    autocomplete="name">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Usuario (debe incluir @)</label>
-                                <input id="userUsername" type="email" placeholder="Ej: juan@empresa.com"
-                                    class="form-control" autocomplete="username">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Contraseña</label>
-                                <input id="userPassword" type="password" placeholder="********" class="form-control"
-                                    autocomplete="new-password">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Rol</label>
-                                <select id="userRole" class="form-select">
-                                    <option value="admin">Administrador</option>
-                                    <option value="operador" selected>Operador</option>
-                                    <option value="visor">Visor</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <button onclick="addUser()" class="btn btn-primary w-100">Registrar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+        <div class="row justify-content-center w-100">
             <div class="col-md-8">
                 <div class="card shadow-sm card-scroll" id="usersCard">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -106,7 +70,7 @@
                             Lista de Usuarios (<span id="usersCount">0</span>)
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body scroll-users">
                         <div id="listUsers" class="list-group"></div>
                     </div>
                 </div>
@@ -114,7 +78,12 @@
         </div>
     </main>
 
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        window.CURRENT_ROLE = "{{ role|default('visor') }}";
+    </script>
+
     <script>
         let allUsers = [];
         let currentUserRole = 'visor';

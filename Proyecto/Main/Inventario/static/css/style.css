@@ -420,3 +420,57 @@ ul {
   transform: translateY(-1px);
   transition: all .18s ease;
 }
+
+/* Centrar vertical y horizontalmente la card de usuarios */
+.container-dashboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* centra verticalmente */
+  min-height: 80vh;
+}
+
+@media (max-width: 768px) {
+  .container-dashboard {
+    justify-content: flex-start; /* en móvil, comienza desde arriba */
+    padding-top: 30px;
+  }
+}
+/* ==== Centrado + Scroll para lista de usuarios ==== */
+
+/* Centra la card de usuarios en la pantalla */
+.container-dashboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+/* Mantiene el centrado solo visual, pero sin afectar el scroll interno */
+@media (max-width: 768px) {
+  .container-dashboard {
+    justify-content: flex-start;
+    padding-top: 30px;
+  }
+}
+
+/* Card de usuarios con scroll interno */
+.scroll-users {
+  max-height: 60vh;              /* altura máxima visible */
+  overflow-y: auto;              /* activa scroll vertical */
+  scrollbar-width: thin;         /* scrollbar moderno */
+  scrollbar-color: var(--brand) rgba(255, 255, 255, 0.2);
+}
+
+/* Personaliza scrollbar en navegadores WebKit */
+.scroll-users::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-users::-webkit-scrollbar-thumb {
+  background-color: var(--brand);
+  border-radius: 10px;
+}
+.scroll-users::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
