@@ -362,7 +362,7 @@ ul {
 }
 
 #lowStockContainer .alert strong {
-  color: #f70606c4 !important; /* resaltar nombre del producto en verde agua */
+  color: yellow !important; /* resaltar nombre del producto en verde agua */
 }
 
 #lowStockContainer .alert small {
@@ -474,3 +474,4 @@ ul {
 .scroll-users::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.1);
 }
+

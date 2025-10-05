@@ -15,10 +15,12 @@
     <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('dashboard') }}">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack logo" class="me-2" />
+                <img src="{{ url_for('static', filename='img/logo.png') }}" width="60" alt="Inventrack logo"
+                    class="me-2" />
                 <span class="text-dark">Inventrack</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -31,13 +33,18 @@
                     <li class="nav-item"><a class="nav-link active" href="{{ url_for('reportes') }}">Reportes</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a></li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarUser"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user-circle me-1"></i> {{ usuario }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUser">
-                            <li><a class="dropdown-item" href="/mi_perfil"><i class="fas fa-user"></i> Mi Perfil</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Salir</a></li>
+                            <li><a class="dropdown-item" href="/mi_perfil"><i class="fas fa-user"></i> Mi Perfil</a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i
+                                        class="fas fa-sign-out-alt"></i> Salir</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -52,12 +59,14 @@
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-12 col-md-4">
-                        <label class="form-label">Buscar (producto o SKU)</label>
-                        <input id="fltQuery" type="text" class="form-control" placeholder="Ej: tornillo, SKU001">
+                        <label class="form-label">Buscar (SKU o producto)</label>
+                        <input id="fltQuery" type="text" class="form-control" placeholder="Ej: SKU001, tornillo">
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label">Bodega</label>
-                        <select id="fltWarehouse" class="form-select"><option value="">Todas</option></select>
+                        <select id="fltWarehouse" class="form-select">
+                            <option value="">Todas</option>
+                        </select>
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label">Opciones</label>
@@ -75,9 +84,12 @@
                 <div class="card shadow-sm card-scroll">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                         <div><span>Stock bajo</span><span class="badge bg-secondary ms-2" id="lowCount">0</span></div>
-                        <button class="btn btn-success btn-sm soft-hover" onclick="downloadLowStockCSV()">Exportar CSV</button>
+                        <button class="btn btn-success btn-sm soft-hover" onclick="downloadLowStockCSV()">Exportar
+                            CSV</button>
                     </div>
-                    <div class="card-body"><div class="scroll-body" id="reportLowStockContainer"></div></div>
+                    <div class="card-body">
+                        <div class="scroll-body" id="reportLowStockContainer"></div>
+                    </div>
                 </div>
             </div>
             <div class="col-md-6">
@@ -85,7 +97,9 @@
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                         <span>Resumen por Bodega</span><span class="badge bg-secondary" id="summaryCount">0</span>
                     </div>
-                    <div class="card-body"><div class="scroll-body" id="warehouseSummary"></div></div>
+                    <div class="card-body">
+                        <div class="scroll-body" id="warehouseSummary"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -155,7 +169,7 @@
             try {
                 const response = await fetch(`/api/reportes/stock?${queryString}`);
                 if (!response.ok) throw new Error('Error en la respuesta del servidor.');
-                
+
                 const data = await response.json();
                 currentLowStockData = data.low_stock || []; // Guardar datos para CSV
 
@@ -171,16 +185,17 @@
         function renderLowStock(items) {
             const container = document.getElementById('reportLowStockContainer');
             document.getElementById('lowCount').textContent = items.length;
-            
+
             if (items.length === 0) {
                 container.innerHTML = '<div class="text-muted p-2">No hay productos bajo el mínimo con los filtros actuales.</div>';
                 return;
             }
 
+            // SKU antes del producto
             container.innerHTML = items.map(item => `
                 <div class="p-2 mb-2 border rounded d-flex justify-content-between align-items-center bg-warning-subtle">
                     <div>
-                        <div class="fw-semibold">${item.product_name} <small class="text-muted">(${item.product_sku})</small></div>
+                        <div class="fw-semibold">${item.product_sku} <small class="text-muted">(${item.product_name})</small></div>
                         <small class="text-muted">Bodega: ${item.warehouse_name}</small>
                     </div>
                     <div class="text-end">
@@ -210,10 +225,10 @@
             container.innerHTML = Object.keys(groupedByWarehouse).map(warehouseName => {
                 const productsHtml = groupedByWarehouse[warehouseName].map(p => `
                     <div class="d-flex justify-content-between">
-                        <span>${p.product_name} <small class="text-muted">(${p.product_sku})</small></span>
+                        <span>${p.product_sku} <small class="text-muted">(${p.product_name})</small></span>
                         <span class="badge ${p.is_low ? 'bg-danger text-light' : 'bg-secondary text-dark'}">${p.qty}</span>
                     </div>`).join('');
-                
+
                 return `<div class="mb-3 p-2 border rounded bg-light">
                             <div class="fw-bold mb-2">${warehouseName}</div>
                             ${productsHtml}
@@ -221,27 +236,53 @@
             }).join('');
         }
 
+        // === CSV helpers (Excel-friendly) ===
+        function csvSeparator() {
+            try { return Intl.NumberFormat().format(1.1).indexOf(',') > -1 ? ';' : ','; }
+            catch (e) { return ';'; }
+        }
+        function toCSV(rows) {
+            const sep = csvSeparator();
+            const lines = rows.map(r => r.map(val => {
+                const s = String(val == null ? '' : val);
+                const needsQuotes = s.indexOf('"') > -1 || s.indexOf(sep) > -1 || s.indexOf('\n') > -1 || s.indexOf('\r') > -1;
+                const esc = s.replace(/"/g, '""');
+                return needsQuotes ? `"${esc}"` : esc;
+            }).join(sep));
+            return '\ufeff' + lines.join('\r\n'); // BOM + CRLF
+        }
+
+        // === Exportar CSV (SKU antes de producto y con correlativo N°) ===
         function downloadLowStockCSV() {
-            if (currentLowStockData.length === 0) {
+            if (!currentLowStockData.length) {
                 alert("No hay datos de stock bajo para exportar con los filtros aplicados.");
                 return;
             }
 
-            const rows = [["Producto", "SKU", "Bodega", "Stock Actual", "Stock Mínimo"]];
-            currentLowStockData.forEach(item => {
-                rows.push([item.product_name, item.product_sku, item.warehouse_name, item.qty, item.min_stock]);
+            const header = ["N°", "SKU", "Producto", "Bodega", "Stock Actual", "Stock Mínimo"];
+            const rows = [header];
+
+            currentLowStockData.forEach((i, idx) => {
+                rows.push([
+                    idx + 1,               // correlativo
+                    i.product_sku || "",
+                    i.product_name || "",
+                    i.warehouse_name || "",
+                    i.qty != null ? i.qty : "",
+                    i.min_stock != null ? i.min_stock : ""
+                ]);
             });
 
-            const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-            
-            const encodedUri = encodeURI(csvContent);
+            const csv = toCSV(rows);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `reporte_stock_bajo_${new Date().toISOString().slice(0, 10)}.csv`);
+            link.href = URL.createObjectURL(blob);
+            link.download = `reporte_stock_bajo_${new Date().toISOString().slice(0, 10)}.csv`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
     </script>
 </body>
+
 </html>

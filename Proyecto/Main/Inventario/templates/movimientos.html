@@ -78,8 +78,7 @@
                         <button class="btn btn-sm btn-success" onclick="exportMovementsCSV()">Exportar CSV</button>
                     </div>
                     <div class="card-body">
-                        <input type="text" id="searchMov" class="form-control mb-3" placeholder="Buscar movimientos..."
-                            oninput="renderMovements()">
+                        <input type="text" id="searchMov" class="form-control mb-3" placeholder="Buscar movimientos...">
                         <div class="scroll-body">
                             <div id="movementsList"></div>
                         </div>
@@ -92,137 +91,134 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // === Sesión (igual que tus otras páginas) ===
         const IS_AUTH = JSON.parse('{{ (session.get("usuario") is not none) | tojson | safe }}');
         function requireSession() {
             if (!IS_AUTH) {
                 window.location.href = "{{ url_for('login') }}";
                 return false;
             }
-            // Mock de un usuario para pruebas si no hay sesión real
-            if (!sessionStorage.getItem('inventrackUser')) {
-                sessionStorage.setItem('inventrackUser', JSON.stringify({ name: 'Admin', role: 'admin' }));
-            }
             return true;
         }
 
-        function logout() {
-            try { sessionStorage.removeItem('inventrackUser'); } catch { }
-            window.location.href = "{{ url_for('logout') }}";
-        }
-        
-        // ===== LocalStorage ACTIVADO =====
-        function saveDB() {
-            try {
-                localStorage.setItem('inventrackDB', JSON.stringify(db));
-            } catch (e) {
-                console.error("Error guardando en LocalStorage:", e);
-            }
-        }
+        // === Estado en memoria (sin localStorage) ===
+        let currentUserRole = 'visor';
+        let warehouses = []; // [{id,name}]
+        let products = []; // [{id, sku, name}]
+        let movements = []; // [{id, type, productId, qty, fromW, toW, date, note}]
 
-        function loadDB() {
-            try {
-                const data = localStorage.getItem('inventrackDB');
-                if (data) {
-                    return JSON.parse(data);
-                }
-            } catch (e) {
-                console.error("Error cargando de LocalStorage:", e);
-            }
-            // --- DATOS DE EJEMPLO SI NO HAY NADA GUARDADO ---
-            return {
-                products: [
-                    { id: 'p162222', name: 'Laptop Pro 15"', sku: 'LP15-2024', stocks: { w1: 10, w2: 5 } },
-                    { id: 'p163333', name: 'Mouse Inalámbrico', sku: 'MI-LOGI-01', stocks: { w1: 30, w2: 15 } },
-                    { id: 'p164444', name: 'Teclado Mecánico', sku: 'TM-RAZ-RGB', stocks: { w1: 12, w2: 0 } }
-                ],
-                warehouses: [
-                    { id: 'w1', name: 'Bodega Central' },
-                    { id: 'w2', name: 'Sucursal Este' }
-                ],
-                movements: [],
-                users: []
-            };
-        }
-        let db = loadDB();
-        // =====================================
-
-        function ensureStocksForWarehouses() {
-            db.products = db.products.map(p => ({
-                ...p,
-                stocks: db.warehouses.reduce((acc, w) => {
-                    acc[w.id] = p.stocks?.[w.id] || 0;
-                    return acc;
-                }, {})
-            }));
-        }
-
-        function currentUser() { try { return JSON.parse(sessionStorage.getItem('inventrackUser')) || null; } catch { return null; } }
+        // === Permisos ===
         function canManageMovements() {
-            const u = currentUser();
-            return u && (u.role === 'admin' || u.role === 'operador');
+            return ['admin', 'operador'].includes(currentUserRole);
         }
 
-        function initMovements() {
+        // === Init ===
+        async function initMovements() {
             if (!requireSession()) return;
-            ensureStocksForWarehouses();
-            saveDB();
-            renderMovementForm();
-            renderSelectors();
-            renderMovements();
-            const typeSel = document.getElementById('movType');
-            if (typeSel) {
-                typeSel.addEventListener('change', toggleWarehouseFields);
-                toggleWarehouseFields();
+            try {
+                // Rol
+                const roleRes = await fetch('/api/user_role');
+                const roleData = await roleRes.json();
+                currentUserRole = roleData.role || 'visor';
+
+                // Catálogos
+                [warehouses, products] = await Promise.all([
+                    fetchWarehouses(),
+                    fetchProducts()
+                ]);
+
+                // UI
+                renderMovementForm();
+                renderSelectors();
+
+                // Movimientos
+                await loadMovements();
+                renderMovements();
+
+                // Listeners
+                const typeSel = document.getElementById('movType');
+                if (typeSel) {
+                    typeSel.addEventListener('change', toggleWarehouseFields);
+                    toggleWarehouseFields();
+                }
+                const search = document.getElementById('searchMov');
+                if (search) search.addEventListener('input', renderMovements);
+
+            } catch (err) {
+                console.error('Error inicializando movimientos:', err);
+                alert('No se pudo cargar la página de Movimientos.');
             }
         }
 
+        // === Fetchers ===
+        async function fetchWarehouses() {
+            const r = await fetch('/api/bodegas');
+            if (!r.ok) throw new Error('Error al obtener bodegas');
+            return await r.json();
+        }
+        async function fetchProducts() {
+            const r = await fetch('/api/productos');
+            if (!r.ok) throw new Error('Error al obtener productos');
+            return await r.json();
+        }
+        async function loadMovements() {
+            const r = await fetch('/api/movimientos');
+            if (!r.ok) throw new Error('Error al obtener movimientos');
+            movements = await r.json();
+        }
+
+        // === Render ===
         function renderMovementForm() {
             const c = document.getElementById('movementFormContainer');
+            if (!c) return;
+
             if (!canManageMovements()) {
                 c.innerHTML = '<p class="text-muted">No tienes permisos para registrar movimientos.</p>';
                 return;
             }
+
             c.innerHTML = `
-        <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label">Tipo</label>
-            <select id="movType" class="form-select">
-              <option value="IN">Entrada</option>
-              <option value="OUT">Salida</option>
-              <option value="TRANSFER">Transferencia</option>
-            </select>
-          </div>
-          <div class="col-12">
-            <label class="form-label">Producto</label>
-            <select id="movProduct" class="form-select"></select>
-          </div>
-          <div class="col-12" id="fromWDiv">
-            <label class="form-label">Desde</label>
-            <select id="movFrom" class="form-select"></select>
-          </div>
-          <div class="col-12" id="toWDiv">
-            <label class="form-label">Hacia</label>
-            <select id="movTo" class="form-select"></select>
-          </div>
-          <div class="col-12">
-            <label class="form-label">Cantidad</label>
-            <input type="number" id="movQty" class="form-control" min="1" step="1"
-                   onkeydown="if(['e','E','-','+','.'].includes(event.key)) event.preventDefault();">
-          </div>
-          <div class="col-12">
-            <label class="form-label">Nota</label>
-            <input type="text" id="movNote" class="form-control" placeholder="OC-123, ajuste, etc.">
-          </div>
-          <div class="col-12">
-            <button class="btn btn-primary w-100" onclick="addMovement()">Registrar</button>
-          </div>
-        </div>`;
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Tipo</label>
+                <select id="movType" class="form-select">
+                  <option value="IN">Entrada</option>
+                  <option value="OUT">Salida</option>
+                  <option value="TRANSFER">Transferencia</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Producto</label>
+                <select id="movProduct" class="form-select"></select>
+              </div>
+              <div class="col-12" id="fromWDiv">
+                <label class="form-label">Desde</label>
+                <select id="movFrom" class="form-select"></select>
+              </div>
+              <div class="col-12" id="toWDiv">
+                <label class="form-label">Hacia</label>
+                <select id="movTo" class="form-select"></select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Cantidad</label>
+                <input type="number" id="movQty" class="form-control" min="1" step="1"
+                       onkeydown="if(['e','E','-','+','.'].includes(event.key)) event.preventDefault();">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Nota</label>
+                <input type="text" id="movNote" class="form-control" placeholder="OC-123, ajuste, etc.">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary w-100" onclick="addMovement()">Registrar</button>
+              </div>
+            </div>`;
         }
 
         function toggleWarehouseFields() {
-            const type = document.getElementById('movType').value;
-            document.getElementById('fromWDiv').style.display = (type === "OUT" || type === "TRANSFER") ? 'block' : 'none';
-            document.getElementById('toWDiv').style.display = (type === "IN" || type === "TRANSFER") ? 'block' : 'none';
+            const type = document.getElementById('movType') ? document.getElementById('movType').value : '';
+            if (!type) return;
+            document.getElementById('fromWDiv').style.display = (type === 'OUT' || type === 'TRANSFER') ? 'block' : 'none';
+            document.getElementById('toWDiv').style.display = (type === 'IN' || type === 'TRANSFER') ? 'block' : 'none';
         }
 
         function renderSelectors() {
@@ -231,154 +227,220 @@
             const to = document.getElementById('movTo');
 
             if (prodSelect) {
-                prodSelect.innerHTML = db.products.length ? '' : '<option disabled selected>Sin productos</option>';
-                db.products.forEach(p => {
+                prodSelect.innerHTML = products.length ? '' : '<option disabled selected>Sin productos</option>';
+                products.forEach(function (p) {
                     const opt = document.createElement('option');
                     opt.value = p.id;
-                    opt.textContent = `${p.name} (${p.sku})`;
+                    opt.textContent = (p.name || '') + ' (' + (p.sku || '') + ')';
                     prodSelect.appendChild(opt);
                 });
             }
 
             if (from && to) {
-                from.innerHTML = db.warehouses.length ? '' : '<option disabled selected>Sin bodegas</option>';
-                to.innerHTML = db.warehouses.length ? '' : '<option disabled selected>Sin bodegas</option>';
-                db.warehouses.forEach(w => {
+                from.innerHTML = warehouses.length ? '' : '<option disabled selected>Sin bodegas</option>';
+                to.innerHTML = warehouses.length ? '' : '<option disabled selected>Sin bodegas</option>';
+                warehouses.forEach(function (w) {
                     const of = document.createElement('option'); of.value = w.id; of.textContent = w.name; from.appendChild(of);
                     const ot = document.createElement('option'); ot.value = w.id; ot.textContent = w.name; to.appendChild(ot);
                 });
             }
         }
 
-        function addMovement() {
-            if (!canManageMovements()) return alert("No tienes permiso para registrar movimientos");
-            const type = document.getElementById('movType').value;
-            const productId = document.getElementById('movProduct').value;
-            const fromW = document.getElementById('movFrom').value;
-            const toW = document.getElementById('movTo').value;
-            const qty = Math.max(1, Number(document.getElementById('movQty').value || 0));
-            const note = document.getElementById('movNote').value.trim();
-
-            if (!productId || !qty) return alert("Seleccione producto y una cantidad válida (>=1)");
-            const product = db.products.find(p => p.id === productId);
-            if (!product) return alert("Producto no encontrado.");
-
-            if (type === "TRANSFER" && fromW === toW) return alert("La bodega de origen y destino no pueden ser iguales.");
-            
-            if (type === "OUT" || type === "TRANSFER") {
-                if ((product.stocks[fromW] || 0) < qty) return alert(`Stock insuficiente en la bodega de origen. Stock actual: ${product.stocks[fromW] || 0}`);
-            }
-
-            // Actualizar stock
-            if (type === "IN") product.stocks[toW] = (product.stocks[toW] || 0) + qty;
-            if (type === "OUT") product.stocks[fromW] -= qty;
-            if (type === "TRANSFER") {
-                product.stocks[fromW] -= qty;
-                product.stocks[toW] = (product.stocks[toW] || 0) + qty;
-            }
-
-            const movement = { id: 'm' + Date.now(), type, productId, qty, fromW, toW, date: new Date().toLocaleString(), note };
-            db.movements.unshift(movement);
-            
-            saveDB();
-            document.getElementById('movQty').value = '';
-            document.getElementById('movNote').value = '';
-            renderMovements();
+        function nameOfWarehouse(id) {
+            var w = (warehouses || []).find(function (x) { return x.id === id; });
+            return (w && w.name) ? w.name : '';
+        }
+        function productById(id) {
+            return (products || []).find(function (x) { return x.id === id; });
         }
 
         function renderMovements() {
-            const search = (document.getElementById('searchMov').value || '').toLowerCase();
+            const searchEl = document.getElementById('searchMov');
+            const search = (searchEl && searchEl.value ? searchEl.value : '').toLowerCase();
             const container = document.getElementById('movementsList');
+            if (!container) return;
             container.innerHTML = '';
-            const typeLabels = { IN: "Entrada", OUT: "Salida", TRANSFER: "Transferencia" };
 
-            const filteredMovements = db.movements.filter(m => {
-                const p = db.products.find(p2 => p2.id === m.productId);
-                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
-                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
-                const s = [p?.name, p?.sku, typeLabels[m.type], fromName, toName, m.note, m.date].join(' ').toLowerCase();
-                return s.includes(search);
+            const typeLabels = { IN: 'Entrada', OUT: 'Salida', TRANSFER: 'Transferencia' };
+
+            const filtered = movements.filter(function (m) {
+                const p = productById(m.productId);
+                const fromName = nameOfWarehouse(m.fromW);
+                const toName = nameOfWarehouse(m.toW);
+                const s = [
+                    p ? p.name : '',
+                    p ? p.sku : '',
+                    typeLabels[m.type] || m.type,
+                    fromName,
+                    toName,
+                    m.note || '',
+                    m.date || ''
+                ].join(' ').toLowerCase();
+                return s.indexOf(search) > -1;
             });
 
-            if (!filteredMovements.length) {
+            if (!filtered.length) {
                 container.innerHTML = '<p class="text-center text-muted mt-3">No se encontraron movimientos.</p>';
                 return;
             }
 
-            filteredMovements.forEach(m => {
-                const p = db.products.find(p2 => p2.id === m.productId);
-                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
-                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
+            filtered.forEach(function (m) {
+                const p = productById(m.productId);
+                const fromName = nameOfWarehouse(m.fromW);
+                const toName = nameOfWarehouse(m.toW);
+
+                var locationInfo = '';
+                if (m.type === 'IN') locationInfo = 'Hacia: ' + toName;
+                else if (m.type === 'OUT') locationInfo = 'Desde: ' + fromName;
+                else locationInfo = 'Desde: ' + fromName + ' → Hacia: ' + toName;
+
                 const div = document.createElement('div');
                 div.className = 'movement-card d-flex justify-content-between align-items-center';
-                
-                let locationInfo = '';
-                if (m.type === 'IN') locationInfo = `Hacia: ${toName}`;
-                else if (m.type === 'OUT') locationInfo = `Desde: ${fromName}`;
-                else if (m.type === 'TRANSFER') locationInfo = `Desde: ${fromName} → Hacia: ${toName}`;
-
                 div.innerHTML = `
                     <div>
-                        <strong>${typeLabels[m.type]}</strong> - ${p?.name || 'N/A'} (${p?.sku || 'N/A'})<br>
-                        ${locationInfo}<br>
-                        Cantidad: <strong>${m.qty}</strong><br>
-                        Nota: ${m.note || '---'}<br>
-                        <small class="text-muted">${m.date}</small>
+                      <strong>${typeLabels[m.type] || m.type}</strong> - ${(p && p.name) ? p.name : 'N/A'} (${(p && p.sku) ? p.sku : 'N/A'})<br>
+                      ${locationInfo}<br>
+                      Cantidad: <strong>${m.qty}</strong><br>
+                      Nota: ${m.note ? m.note : '---'}<br>
+                      <small class="text-muted">${m.date || ''}</small>
                     </div>
-                    ${canManageMovements() ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMovement('${m.id}')"><i class="fas fa-trash"></i></button>` : ''}
-                `;
+                    ${canManageMovements() ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMovement('${m.id}')"><i class="fas fa-trash"></i></button>` : ''}`;
                 container.appendChild(div);
             });
         }
-        
-        // ===== FUNCIÓN DE ELIMINAR CORREGIDA =====
-        function deleteMovement(id) {
-            if (!canManageMovements()) return;
-            
-            const movIndex = db.movements.findIndex(m => m.id === id);
-            if (movIndex === -1) return;
-            
-            const movement = db.movements[movIndex];
-            const product = db.products.find(p => p.id === movement.productId);
 
-            if (!confirm(`¿Eliminar este movimiento?\n\nEsta acción revertirá el cambio de stock.`)) return;
+        // === Acciones (contra la API) ===
+        async function addMovement() {
+            if (!canManageMovements()) return alert('No tienes permiso para registrar movimientos');
 
-            // Revertir el cambio en el stock
-            if (product) {
-                const { type, qty, fromW, toW } = movement;
-                if (type === "IN") product.stocks[toW] = (product.stocks[toW] || 0) - qty;
-                if (type === "OUT") product.stocks[fromW] = (product.stocks[fromW] || 0) + qty;
-                if (type === "TRANSFER") {
-                    product.stocks[fromW] = (product.stocks[fromW] || 0) + qty;
-                    product.stocks[toW] = (product.stocks[toW] || 0) - qty;
+            const type = document.getElementById('movType').value;
+            const productId = document.getElementById('movProduct').value;
+            const fromEl = document.getElementById('movFrom');
+            const toEl = document.getElementById('movTo');
+            const fromW = fromEl ? (fromEl.value || null) : null;
+            const toW = toEl ? (toEl.value || null) : null;
+            const qty = Math.max(1, Number(document.getElementById('movQty').value || 0));
+            const note = (document.getElementById('movNote').value || '').trim();
+
+            if (!productId || !qty) return alert('Seleccione un producto y una cantidad válida (>=1)');
+            if (type === 'TRANSFER' && fromW === toW) return alert('La bodega de origen y destino no pueden ser iguales.');
+
+            try {
+                const r = await fetch('/api/movimientos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, productId, qty, fromW, toW, note })
+                });
+                if (!r.ok) {
+                    const e = await r.json().catch(function () { return {}; });
+                    throw new Error(e.error || 'Error al registrar el movimiento');
                 }
+
+                // Limpiar y recargar lista
+                document.getElementById('movQty').value = '';
+                document.getElementById('movNote').value = '';
+
+                await loadMovements();
+                renderMovements();
+                alert('Movimiento registrado con éxito.');
+
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function deleteMovement(id) {
+            if (!canManageMovements()) return;
+            if (!confirm('¿Eliminar este movimiento? Esto revertirá el stock en el servidor.')) return;
+
+            try {
+                const r = await fetch('/api/movimientos/' + id, { method: 'DELETE' });
+                if (!r.ok) {
+                    const e = await r.json().catch(function () { return {}; });
+                    throw new Error(e.error || 'Error al eliminar el movimiento');
+                }
+                await loadMovements();
+                renderMovements();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        // === Export CSV (Excel-friendly) ===
+        function csvSeparator() {
+            try { return Intl.NumberFormat().format(1.1).indexOf(',') > -1 ? ';' : ','; }
+            catch (e) { return ';'; }
+        }
+        function toCSV(rows) {
+            var sep = csvSeparator();
+            var lines = rows.map(function (r) {
+                return r.map(function (val) {
+                    var s = String(val == null ? '' : val);
+                    var needsQuotes = s.indexOf('"') > -1 || s.indexOf(sep) > -1 || s.indexOf('\n') > -1 || s.indexOf('\r') > -1;
+                    var esc = s.replace(/"/g, '""');
+                    return needsQuotes ? '"' + esc + '"' : esc;
+                }).join(sep);
+            }).join('\r\n');
+            return '\ufeff' + lines; // BOM
+        }
+        function exportMovementsCSV() {
+            if (!movements.length) {
+                alert("No hay movimientos para exportar");
+                return;
             }
 
-            db.movements.splice(movIndex, 1); // Eliminar el movimiento del array
-            saveDB();
-            renderMovements();
-        }
+            var typeLabels = { IN: "Entrada", OUT: "Salida", TRANSFER: "Transferencia" };
+            // 👉 SKU antes que Producto
+            var header = ["N°", "Tipo", "SKU", "Producto", "Desde", "Hacia", "Cantidad", "Nota", "Fecha"];
+            var rows = [header];
 
-        function exportMovementsCSV() {
-            if (!db.movements.length) return alert("No hay movimientos para exportar");
-            const rows = [["ID", "Tipo", "Producto", "SKU", "Desde", "Hacia", "Cantidad", "Nota", "Fecha"]];
-            db.movements.forEach(m => {
-                const p = db.products.find(p => p.id === m.productId);
-                const fromName = db.warehouses.find(w => w.id === m.fromW)?.name || '';
-                const toName = db.warehouses.find(w => w.id === m.toW)?.name || '';
-                rows.push([m.id, m.type, p?.name || '', p?.sku || '', fromName, toName, m.qty, m.note, m.date]);
+            // Respetar lo filtrado en pantalla
+            var searchEl = document.getElementById('searchMov');
+            var query = (searchEl && searchEl.value ? searchEl.value : '').toLowerCase();
+
+            var filtered = movements.filter(function (m) {
+                var p = productById(m.productId) || {};
+                var fromName = nameOfWarehouse(m.fromW);
+                var toName = nameOfWarehouse(m.toW);
+                var s = [
+                    p.name || "", p.sku || "",
+                    typeLabels[m.type] || m.type || "",
+                    fromName, toName,
+                    m.note || "", m.date || ""
+                ].join(' ').toLowerCase();
+                return !query || s.indexOf(query) > -1;
             });
 
-            const csv = rows.map(r =>
-                r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(",")
-            ).join("\n");
+            // Generar filas con correlativo y SKU antes del nombre
+            filtered.forEach(function (m, idx) {
+                var p = productById(m.productId) || {};
+                var fromName = nameOfWarehouse(m.fromW);
+                var toName = nameOfWarehouse(m.toW);
 
-            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-            const link = document.createElement("a");
+                rows.push([
+                    idx + 1,                                // N°
+                    typeLabels[m.type] || m.type || "",
+                    p.sku || "",                           // SKU primero
+                    p.name || "",                           // luego Producto
+                    fromName,
+                    toName,
+                    (m.qty != null ? m.qty : ""),
+                    m.note || "",
+                    m.date || ""
+                ]);
+            });
+
+            var csv = toCSV(rows); // reutiliza tu toCSV (BOM + separador regional + CRLF)
+            var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+            var link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `movimientos_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.download = "movimientos_" + new Date().toISOString().slice(0, 10) + ".csv";
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
         }
     </script>
+
 </body>
+
 </html>

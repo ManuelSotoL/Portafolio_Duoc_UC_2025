@@ -11,6 +11,7 @@ from sendgrid.helpers.mail import Mail
 from itsdangerous import URLSafeTimedSerializer as Serializer
 from functools import wraps
 from bson.objectid import ObjectId
+from datetime import datetime  # <-- añadido para fechas en movimientos
 
 # ====================
 #   Config & Setup
@@ -434,6 +435,237 @@ def save_stocks(bodega_id):
             {"$set": {f"stocks.{bodega_id}": int(item["stock"])}}
         )
     return jsonify({"message": "Stocks actualizados."})
+
+
+# --- API Movimientos ---
+def _inc_stock(product_id: str, warehouse_id: str, delta: int):
+    """
+    Incrementa/decrementa el stock de un producto en una bodega específica.
+    product_id: string con el _id del producto (ObjectId en texto)
+    warehouse_id: string con el _id de la bodega (ObjectId en texto)
+    delta: entero (positivo o negativo)
+    """
+    productos_collection.update_one(
+        {"_id": ObjectId(product_id)},
+        {"$inc": {f"stocks.{warehouse_id}": int(delta)}},
+        upsert=False
+    )
+
+@app.route("/api/movimientos", methods=["GET"])
+@login_required
+def api_list_movimientos():
+    """
+    Lista los movimientos ordenados del más reciente al más antiguo.
+    Devuelve campos: id, type, productId, qty, fromW, toW, note, date
+    """
+    docs = list(movimientos_collection.find({}).sort([("_id", -1)]))
+    for d in docs:
+        d["id"] = str(d.pop("_id"))
+    return jsonify(docs), 200
+
+
+@app.route("/api/movimientos", methods=["POST"])
+@login_required
+@role_required(["admin", "operador"])
+def api_create_movimiento():
+    """
+    Crea un movimiento y actualiza stocks en BD.
+    Body JSON: { type: IN|OUT|TRANSFER, productId, qty, fromW?, toW?, note? }
+    - IN:   requiere toW
+    - OUT:  requiere fromW
+    - TRANSFER: requiere fromW y toW distintos
+    """
+    data = request.get_json(silent=True) or {}
+    mtype  = data.get("type")
+    pid    = data.get("productId")  # _id del producto en texto
+    qty    = int(data.get("qty", 0))
+    fromW  = (data.get("fromW") or None)
+    toW    = (data.get("toW")   or None)
+    note   = (data.get("note")  or "").strip()
+
+    # Validaciones básicas
+    if mtype not in ("IN", "OUT", "TRANSFER"):
+        return jsonify({"error": "Tipo inválido. Debe ser IN, OUT o TRANSFER"}), 400
+    if qty <= 0:
+        return jsonify({"error": "Cantidad inválida"}), 400
+    if mtype == "IN" and not toW:
+        return jsonify({"error": "Entrada requiere bodega destino"}), 400
+    if mtype == "OUT" and not fromW:
+        return jsonify({"error": "Salida requiere bodega origen"}), 400
+    if mtype == "TRANSFER":
+        if not fromW or not toW or fromW == toW:
+            return jsonify({"error": "Transferencia requiere bodegas distintas (fromW y toW)"}), 400
+
+    # Validar producto
+    try:
+        prod = productos_collection.find_one({"_id": ObjectId(pid)})
+    except Exception:
+        prod = None
+    if not prod:
+        return jsonify({"error": "Producto no encontrado"}), 404
+
+    # Validar bodegas (cuando apliquen)
+    if fromW:
+        try:
+            exists_from = bodegas_collection.find_one({"_id": ObjectId(fromW)})
+        except Exception:
+            exists_from = None
+        if not exists_from:
+            return jsonify({"error": "Bodega origen no existe"}), 400
+
+    if toW:
+        try:
+            exists_to = bodegas_collection.find_one({"_id": ObjectId(toW)})
+        except Exception:
+            exists_to = None
+        if not exists_to:
+            return jsonify({"error": "Bodega destino no existe"}), 400
+
+    # Chequear stock suficiente para OUT / TRANSFER
+    if mtype in ("OUT", "TRANSFER"):
+        current = int(prod.get("stocks", {}).get(fromW, 0))
+        if current < qty:
+            return jsonify({"error": f"Stock insuficiente en bodega origen. Actual: {current}"}), 400
+
+    # Actualizar stocks en BD
+    if mtype == "IN":
+        _inc_stock(pid, toW, +qty)
+    elif mtype == "OUT":
+        _inc_stock(pid, fromW, -qty)
+    else:  # TRANSFER
+        _inc_stock(pid, fromW, -qty)
+        _inc_stock(pid, toW, +qty)
+
+    doc = {
+        "type": mtype,
+        "productId": pid,
+        "qty": qty,
+        "fromW": fromW,
+        "toW": toW,
+        "note": note,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    ins = movimientos_collection.insert_one(doc)
+    doc["id"] = str(ins.inserted_id)
+    doc.pop("_id", None)
+    return jsonify(doc), 201
+
+
+@app.route("/api/movimientos/<mid>", methods=["DELETE"])
+@login_required
+@role_required(["admin", "operador"])
+def api_delete_movimiento(mid):
+    """
+    Elimina un movimiento y revierte su efecto de stock en BD.
+    """
+    try:
+        mov = movimientos_collection.find_one({"_id": ObjectId(mid)})
+    except Exception:
+        mov = None
+    if not mov:
+        return jsonify({"error": "Movimiento no encontrado"}), 404
+
+    mtype = mov.get("type")
+    pid   = mov.get("productId")
+    qty   = int(mov.get("qty", 0))
+    fromW = mov.get("fromW")
+    toW   = mov.get("toW")
+
+    # Revertir stocks según el tipo
+    if mtype == "IN":
+        if toW:
+            _inc_stock(pid, toW, -qty)
+    elif mtype == "OUT":
+        if fromW:
+            _inc_stock(pid, fromW, +qty)
+    elif mtype == "TRANSFER":
+        if fromW:
+            _inc_stock(pid, fromW, +qty)
+        if toW:
+            _inc_stock(pid, toW, -qty)
+
+    movimientos_collection.delete_one({"_id": ObjectId(mid)})
+    return jsonify({"ok": True}), 200
+
+
+# --- API Reportes (stock y resúmenes) ---
+@app.route("/api/reportes/stock", methods=["GET"])
+@login_required
+def api_reportes_stock():
+    """
+    Reporte de:
+      - low_stock: productos en/bajo mínimo (filtrable por bodega y texto)
+      - summary:   detalle por bodega (con is_low por producto). Si onlyLow=true, solo items en/bajo mínimo.
+
+    Query params:
+      q       : texto (nombre o SKU)
+      wid     : id de bodega (ObjectId en string). Si vacío, todas.
+      onlyLow : true/false  (si true, low_stock y summary mostrarán solo bajo mínimo)
+    """
+    try:
+        q = (request.args.get("q") or "").strip().lower()
+        wid = (request.args.get("wid") or "").strip() or None
+        only_low = str(request.args.get("onlyLow", "false")).lower() in ("1", "true", "yes")
+
+        # Map de bodegas: { "<_id>": "name" }
+        bodegas = list(bodegas_collection.find({}, {"_id": 1, "name": 1}))
+        bodegas_map = {str(b["_id"]): b["name"] for b in bodegas}
+
+        # Traer productos con campos necesarios
+        productos = list(productos_collection.find({}, {"_id": 1, "name": 1, "sku": 1, "stocks": 1, "minStock": 1}))
+
+        low_stock = []
+        summary = []
+
+        for p in productos:
+            name = p.get("name", "") or ""
+            sku = p.get("sku", "") or ""
+            # Filtro por texto (producto o SKU) - aplica a ambos bloques
+            if q and (q not in name.lower() and q not in sku.lower()):
+                continue
+
+            min_stock = int(p.get("minStock", 0) or 0)
+            stocks = p.get("stocks", {}) or {}
+
+            # Determinar las bodegas a revisar
+            bodega_ids = [wid] if wid else list(stocks.keys())
+            if not bodega_ids:
+                # Si no hay claves de stock, no hay nada que reportar
+                continue
+
+            for b_id in bodega_ids:
+                qty = int(stocks.get(b_id, 0) or 0)
+                bname = bodegas_map.get(b_id, "Desconocida")
+                is_low = qty <= min_stock
+
+                # low_stock: siempre son solo bajo mínimo; si no hay casos, quedará vacío
+                if is_low:
+                    low_stock.append({
+                        "product_name": name,
+                        "product_sku": sku,
+                        "warehouse_name": bname,
+                        "qty": qty,
+                        "min_stock": min_stock
+                    })
+
+                # summary: si onlyLow=true, solo incluir bajo mínimo; si false, incluir todo
+                if only_low and not is_low:
+                    continue
+
+                summary.append({
+                    "warehouse_name": bname,
+                    "product_name": name,
+                    "product_sku": sku,
+                    "qty": qty,
+                    "min_stock": min_stock,
+                    "is_low": is_low
+                })
+
+        return jsonify({"low_stock": low_stock, "summary": summary}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 # -------- Manejador de 404 --------
